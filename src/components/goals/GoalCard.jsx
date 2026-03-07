@@ -1,24 +1,25 @@
 import { useState } from 'react'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { CATEGORIES } from '../../lib/constants'
 import ReflectModal from './ReflectModal'
+import GoalOptionsMenu from './GoalOptionsMenu'
 import { useStore } from '../../store/useStore'
 
 export default function GoalCard({ goal }) {
-  const { completions, setCompletion, showToast } = useStore()
+  const { isCompleted, setCompletion, updateGoal, showToast } = useStore()
   const [showReflect, setShowReflect] = useState(false)
-  const isComplete = !!completions[goal.id]
+  const [showOptions, setShowOptions] = useState(false)
+  const complete = isCompleted(goal)
   const category = CATEGORIES.find((c) => c.id === goal.category)
-
   const urgency = getUrgency(goal)
 
   function handleComplete() {
-    if (isComplete) return
-    setCompletion(goal.id, true)
+    if (complete) return
+    const newStreak = (goal.streak || 0) + 1
+    setCompletion(goal, true)
+    updateGoal(goal.id, { streak: newStreak })
     setShowReflect(true)
 
-    // Check streak milestone
-    const newStreak = (goal.streak || 0) + 1
     const milestones = [3, 7, 14, 30, 60, 100]
     if (milestones.includes(newStreak)) {
       setTimeout(() => showToast({
@@ -31,19 +32,17 @@ export default function GoalCard({ goal }) {
 
   return (
     <>
-      <motion.div
-        layout
+      <motion.div layout
         className={`bg-bg-card rounded-card p-4 flex items-center gap-3 border shadow-card mb-2.5
-          ${urgency === 'last' ? 'border-l-4' : urgency === 'warn' ? 'border-l-4' : 'border-border'}
-          ${isComplete ? 'opacity-70 bg-bg-surface' : ''}
-        `}
-        style={{
-          borderLeftColor: urgency === 'last' ? '#FF4757' : urgency === 'warn' ? '#F7B731' : undefined,
-        }}
+          ${urgency === 'last' ? 'border-l-[4px]' : urgency === 'warn' ? 'border-l-[4px]' : 'border-border'}
+          ${complete ? 'opacity-60 bg-bg-surface' : ''}`}
+        style={{ borderLeftColor: urgency === 'last' ? '#FF4757' : urgency === 'warn' ? '#F7B731' : undefined }}
+        onLongPress={() => setShowOptions(true)}
       >
         <span className="text-2xl flex-shrink-0">{category?.emoji}</span>
-        <div className="flex-1 min-w-0">
-          <p className={`font-semibold text-sm ${isComplete ? 'line-through text-text-sec' : 'text-text-pri'}`}>
+
+        <div className="flex-1 min-w-0" onContextMenu={(e) => { e.preventDefault(); setShowOptions(true) }}>
+          <p className={`font-semibold text-sm ${complete ? 'line-through text-text-sec' : 'text-text-pri'}`}>
             {goal.name}
           </p>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -66,17 +65,19 @@ export default function GoalCard({ goal }) {
             )}
           </div>
         </div>
-        <button
-          onClick={handleComplete}
-          disabled={isComplete}
-          className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center min-w-[44px] min-h-[44px]"
-        >
-          {isComplete ? (
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className="w-7 h-7 rounded-full bg-brand-accent flex items-center justify-center"
-            >
+
+        {/* Options button */}
+        <button onClick={() => setShowOptions(true)}
+          className="text-text-mut text-lg px-1 min-w-[32px] min-h-[44px] flex items-center justify-center">
+          ···
+        </button>
+
+        {/* Complete button */}
+        <button onClick={handleComplete} disabled={complete}
+          className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center min-w-[44px] min-h-[44px]">
+          {complete ? (
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+              className="w-7 h-7 rounded-full bg-brand-accent flex items-center justify-center">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M2 7l4 4 6-7" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -87,11 +88,8 @@ export default function GoalCard({ goal }) {
         </button>
       </motion.div>
 
-      <ReflectModal
-        open={showReflect}
-        goal={goal}
-        onClose={() => setShowReflect(false)}
-      />
+      <ReflectModal open={showReflect} goal={goal} onClose={() => setShowReflect(false)} />
+      <GoalOptionsMenu open={showOptions} goal={goal} onClose={() => setShowOptions(false)} />
     </>
   )
 }

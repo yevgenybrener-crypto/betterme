@@ -35,7 +35,7 @@ export default function App() {
       {activeTab === 'history' && <History />}
       {activeTab === 'settings' && <Settings />}
       <BottomNav />
-      <FAB />
+      {activeTab === 'home' && <FAB />}
       <HorizonWizard />
       <Toast />
     </div>

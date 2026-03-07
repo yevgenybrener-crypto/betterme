@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useStore } from '../store/useStore'
+import { useStore, periodKey } from '../store/useStore'
 import { CATEGORIES } from '../lib/constants'
 
 export default function History() {
@@ -19,14 +19,13 @@ export default function History() {
         <div className="flex border-b-2 border-border">
           {['heatmap', 'journal'].map((t) => (
             <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 pb-3 text-sm font-medium capitalize transition-colors
+              className={`flex-1 pb-3 text-sm font-medium transition-colors
                 ${tab === t ? 'text-brand-primary font-semibold border-b-2 border-brand-primary -mb-[2px]' : 'text-text-sec'}`}>
               {t === 'heatmap' ? 'Heatmap 🗓️' : 'Journal 📖'}
             </button>
           ))}
         </div>
       </div>
-
       {tab === 'heatmap' && <HeatmapTab />}
       {tab === 'journal' && <JournalTab entries={filtered} search={search} setSearch={setSearch} />}
     </div>
@@ -34,8 +33,8 @@ export default function History() {
 }
 
 function HeatmapTab() {
-  const { completions } = useStore()
-  const weeks = buildWeeks()
+  const { completions, goals } = useStore()
+  const weeks = buildWeeks(completions, goals)
 
   return (
     <div className="px-5">
@@ -49,17 +48,18 @@ function HeatmapTab() {
       </div>
       {weeks.map((week, wi) => (
         <div key={wi} className="grid grid-cols-7 gap-1 mb-1">
-          {week.map((day, di) => (
-            <div key={di}
-              className="aspect-square rounded"
-              style={{ background: day ? '#43E97B' : '#E8E7F5', opacity: day ? 0.85 : 1 }}
-            />
+          {week.map((cell, di) => (
+            <div key={di} className="aspect-square rounded"
+              style={{
+                background: cell.count > 0 ? '#43E97B' : '#E8E7F5',
+                opacity: cell.count > 0 ? Math.min(0.4 + cell.count * 0.2, 1) : 1,
+              }} />
           ))}
         </div>
       ))}
       <div className="flex items-center gap-2 mt-3 mb-6">
         <span className="text-[11px] text-text-sec">Less</span>
-        {[0.15, 0.35, 0.6, 0.85, 1].map((o, i) => (
+        {[0.4, 0.6, 0.8, 1].map((o, i) => (
           <div key={i} className="w-3.5 h-3.5 rounded" style={{ background: `rgba(67,233,123,${o})` }} />
         ))}
         <span className="text-[11px] text-text-sec">More</span>
@@ -106,7 +106,7 @@ function JournalTab({ entries, search, setSearch }) {
   )
 }
 
-function buildWeeks() {
+function buildWeeks(completions, goals) {
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth()
@@ -114,11 +114,26 @@ function buildWeeks() {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const today = now.getDate()
 
-  // Adjust so week starts Monday
+  // Count completions per date
+  const countByDate = {}
+  Object.keys(completions).forEach((key) => {
+    if (!completions[key]) return
+    // key format: goalId_YYYY-MM-DD or goalId_YYYY-Www or goalId_YYYY-MM
+    const parts = key.split('_')
+    const dateStr = parts[parts.length - 1]
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      countByDate[dateStr] = (countByDate[dateStr] || 0) + 1
+    }
+  })
+
   const offset = (firstDay + 6) % 7
-  const cells = Array(offset).fill(null)
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d <= today ? Math.random() > 0.3 : null)
-  while (cells.length % 7 !== 0) cells.push(null)
+  const cells = Array(offset).fill({ count: -1, future: false }) // -1 = padding
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+    const isFuture = d > today
+    cells.push({ count: isFuture ? -1 : (countByDate[dateStr] || 0), date: dateStr, future: isFuture })
+  }
+  while (cells.length % 7 !== 0) cells.push({ count: -1, future: true })
 
   const weeks = []
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))

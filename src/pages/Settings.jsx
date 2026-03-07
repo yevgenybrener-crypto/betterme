@@ -3,10 +3,11 @@ import { supabase } from '../lib/supabase'
 import { WORKDAY_PRESETS } from '../lib/constants'
 
 export default function Settings() {
-  const { user, setUser, reminderTime, workdayPreset, setOnboarding } = useStore()
+  const { user, setUser, reminderTime, workdayPreset, setOnboarding, clearStore } = useStore()
 
   async function handleSignOut() {
     await supabase.auth.signOut()
+    clearStore()
     setUser(null)
   }
 
@@ -33,7 +34,7 @@ export default function Settings() {
             <p className="font-semibold text-sm text-text-pri">Morning reminder</p>
             <p className="text-xs text-text-sec mt-0.5">{reminderTime || '08:00'}</p>
           </div>
-          <input type="time" defaultValue={reminderTime || '08:00'}
+          <input type="time" value={reminderTime || '08:00'}
             onChange={(e) => setOnboarding({ reminderTime: e.target.value })}
             className="text-sm text-brand-primary font-semibold bg-transparent border-none focus:outline-none" />
         </div>
