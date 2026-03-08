@@ -6,12 +6,12 @@ import GoalOptionsMenu from './GoalOptionsMenu'
 import { useStore } from '../../store/useStore'
 
 export default function GoalCard({ goal }) {
-  const { isCompleted, setCompletion, updateGoal, showToast } = useStore()
+  const { isCompleted, setCompletion, updateGoal, showToast, workdayPreset } = useStore()
   const [showReflect, setShowReflect] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const complete = isCompleted(goal)
   const category = CATEGORIES.find((c) => c.id === goal.category)
-  const urgency = getUrgency(goal)
+  const urgency = getUrgency(goal, workdayPreset)
 
   function handleComplete() {
     if (complete) return
@@ -55,7 +55,7 @@ export default function GoalCard({ goal }) {
             )}
             {urgency === 'warn' && (
               <span className="text-[11px] font-medium px-2 py-0.5 rounded-pill bg-yellow-100 text-yellow-700">
-                🟡 {daysLeft(goal)} days left
+                🟡 {daysLeft(goal, workdayPreset)} days left
               </span>
             )}
             {urgency === 'last' && (
@@ -94,19 +94,27 @@ export default function GoalCard({ goal }) {
   )
 }
 
-function getUrgency(goal) {
+function getUrgency(goal, workdayPreset) {
   if (goal.frequency === 'daily') return null
-  const days = daysLeft(goal)
+  const days = daysLeft(goal, workdayPreset)
   if (days === 0) return 'last'
   if (days <= 2) return 'warn'
   return null
 }
 
-function daysLeft(goal) {
+// Returns days remaining in the current period for urgency badges.
+// For weekly goals, counts days until the end of the week based on workday preset:
+//   sun-thu → week ends Saturday (weekStartDay=0, so last day = day 6 = Sat)
+//   mon-fri → week ends Sunday  (weekStartDay=1, so last day = day 7 mod 7 = Sun)
+function daysLeft(goal, workdayPreset = 'mon-fri') {
   const now = new Date()
   if (goal.frequency === 'weekly') {
-    const day = now.getDay()
-    return day === 0 ? 0 : 7 - day
+    const weekStartDay = workdayPreset === 'sun-thu' ? 0 : 1
+    const todayDay = now.getDay() // 0=Sun … 6=Sat
+    // How many days into the current week are we? (0 = first day of week)
+    const dayOfWeek = (todayDay - weekStartDay + 7) % 7
+    // Days left = 6 - dayOfWeek (week has 7 days, 0-indexed)
+    return 6 - dayOfWeek
   }
   if (goal.frequency === 'monthly') {
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
