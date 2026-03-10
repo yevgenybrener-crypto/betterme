@@ -94,17 +94,17 @@ export default function HorizonWizard() {
                   <div className="grid grid-cols-3 gap-2.5 mb-6">
                     {CATEGORIES.map((c) => (
                       <button key={c.id} onClick={() => setForm({ ...form, category: c.id })}
-                        className={`rounded-[14px] p-3 flex flex-col items-center gap-1.5 border-[1.5px] transition-all
+                        className={`rounded-[14px] p-3 flex flex-col items-center justify-center gap-1.5 border-[1.5px] transition-all min-h-[80px]
                           ${form.category === c.id ? 'border-2' : 'border-border bg-bg-card'}`}
                         style={form.category === c.id ? { borderColor: c.color, background: `${c.color}11` } : {}}>
                         <span className="text-2xl">{c.emoji}</span>
-                        <span className="text-[11px] font-semibold text-text-pri text-center leading-tight"
+                        <span className="text-[11px] font-semibold text-text-pri text-center leading-tight line-clamp-2"
                           style={form.category === c.id ? { color: c.color } : {}}>
-                          {c.label.split(' ')[0]}
+                          {c.label}
                         </span>
                       </button>
                     ))}
-                    <div className="rounded-[14px] p-3 flex flex-col items-center gap-1.5 border border-border bg-bg-surface opacity-40">
+                    <div className="rounded-[14px] p-3 flex flex-col items-center justify-center gap-1.5 border border-border bg-bg-surface opacity-40 min-h-[80px]">
                       <span className="text-2xl">🧘</span>
                       <span className="text-[11px] font-semibold text-text-sec">Zen 🔒</span>
                     </div>
