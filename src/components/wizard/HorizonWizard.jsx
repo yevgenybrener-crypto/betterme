@@ -3,27 +3,95 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { CATEGORIES, FREQUENCIES, TEMPLATES } from '../../lib/constants'
 import { useStore } from '../../store/useStore'
 
-export default function HorizonWizard() {
-  const { showWizard, setShowWizard, addGoal } = useStore()
-  const [step, setStep] = useState(1)
-  const [form, setForm] = useState({ frequency: '', category: '', name: '', type: 'binary', target: '', weekdaysOnly: false })
+const ALL_DAYS = [
+  { label: 'Sun', value: 0 },
+  { label: 'Mon', value: 1 },
+  { label: 'Tue', value: 2 },
+  { label: 'Wed', value: 3 },
+  { label: 'Thu', value: 4 },
+  { label: 'Fri', value: 5 },
+  { label: 'Sat', value: 6 },
+]
 
-  function reset() { setStep(1); setForm({ frequency: '', category: '', name: '', type: 'binary', target: '', weekdaysOnly: false }) }
+function orderedDays(workdayPreset) {
+  // Sun-first for sun-thu, Mon-first for mon-fri
+  const startDay = workdayPreset === 'sun-thu' ? 0 : 1
+  const sorted = [...ALL_DAYS].sort((a, b) => ((a.value - startDay + 7) % 7) - ((b.value - startDay + 7) % 7))
+  return sorted
+}
+
+const defaultForm = {
+  frequency: '',
+  weeklyMode: 'times',   // 'times' | 'days'
+  weeklyTimes: 3,
+  weeklyDays: [],
+  category: '',
+  name: '',
+  type: 'binary',
+  target: '',
+  weekdaysOnly: false,
+}
+
+export default function HorizonWizard() {
+  const { showWizard, setShowWizard, addGoal, workdayPreset } = useStore()
+  const [step, setStep] = useState(1)
+  const [form, setForm] = useState(defaultForm)
+  const [dayError, setDayError] = useState(false)
+
+  function reset() { setStep(1); setForm(defaultForm); setDayError(false) }
   function close() { setShowWizard(false); reset() }
 
   function handleCreate() {
     if (!form.name.trim()) return
-    addGoal({
+    const goal = {
       id: Date.now().toString(),
-      ...form,
+      frequency: form.frequency,
+      category: form.category,
+      name: form.name,
+      type: form.type,
+      target: form.target,
+      weekdaysOnly: form.weekdaysOnly,
       streak: 0,
       archived: false,
       createdAt: new Date().toISOString(),
-    })
+    }
+    if (form.frequency === 'weekly') {
+      goal.weeklyMode = form.weeklyMode
+      if (form.weeklyMode === 'times') {
+        goal.weeklyTimes = form.weeklyTimes
+      } else {
+        goal.weeklyDays = form.weeklyDays
+      }
+    }
+    addGoal(goal)
     close()
   }
 
+  function handleStep1Next() {
+    if (!form.frequency) return
+    if (form.frequency === 'weekly') {
+      // Validate days mode
+      if (form.weeklyMode === 'days' && form.weeklyDays.length === 0) {
+        setDayError(true)
+        return
+      }
+    }
+    setDayError(false)
+    setStep(2)
+  }
+
+  function toggleDay(val) {
+    setDayError(false)
+    const current = form.weeklyDays
+    if (current.includes(val)) {
+      setForm({ ...form, weeklyDays: current.filter(d => d !== val) })
+    } else {
+      setForm({ ...form, weeklyDays: [...current, val] })
+    }
+  }
+
   const templates = form.category ? TEMPLATES[form.category] || [] : []
+  const days = orderedDays(workdayPreset)
 
   return (
     <AnimatePresence>
@@ -67,6 +135,8 @@ export default function HorizonWizard() {
                       </button>
                     ))}
                   </div>
+
+                  {/* Daily: weekdays toggle */}
                   {form.frequency === 'daily' && (
                     <div className="bg-bg-card rounded-card p-4 flex items-center justify-between mb-5 border border-border">
                       <div>
@@ -79,7 +149,78 @@ export default function HorizonWizard() {
                       </button>
                     </div>
                   )}
-                  <button onClick={() => form.frequency && setStep(2)}
+
+                  {/* Weekly: sub-frequency selector */}
+                  <AnimatePresence>
+                    {form.frequency === 'weekly' && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden mb-5">
+                        <div className="bg-bg-card rounded-card p-4 border border-border">
+                          {/* Mode toggle */}
+                          <div className="flex gap-2 mb-4">
+                            {['times', 'days'].map((mode) => (
+                              <button key={mode}
+                                onClick={() => { setForm({ ...form, weeklyMode: mode }); setDayError(false) }}
+                                className={`flex-1 py-2 rounded-pill text-xs font-semibold transition-all border
+                                  ${form.weeklyMode === mode ? 'bg-brand-primary text-white border-brand-primary' : 'bg-bg-surface border-border text-text-sec'}`}>
+                                {mode === 'times' ? '× Times per week' : '📅 Specific days'}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Mode A: times picker */}
+                          {form.weeklyMode === 'times' && (
+                            <div className="flex flex-col items-center gap-1">
+                              <p className="text-xs text-text-sec mb-2">How many times this week?</p>
+                              <div className="flex items-center gap-5">
+                                <button
+                                  onClick={() => setForm({ ...form, weeklyTimes: Math.max(1, form.weeklyTimes - 1) })}
+                                  disabled={form.weeklyTimes <= 1}
+                                  className="w-10 h-10 rounded-full border border-border bg-bg-surface flex items-center justify-center text-lg font-bold text-text-pri disabled:opacity-30">
+                                  −
+                                </button>
+                                <div className="text-center">
+                                  <span className="text-2xl font-bold text-brand-primary">{form.weeklyTimes}</span>
+                                  <p className="text-[10px] text-text-sec">per week</p>
+                                </div>
+                                <button
+                                  onClick={() => setForm({ ...form, weeklyTimes: Math.min(7, form.weeklyTimes + 1) })}
+                                  disabled={form.weeklyTimes >= 7}
+                                  className="w-10 h-10 rounded-full border border-border bg-bg-surface flex items-center justify-center text-lg font-bold text-text-pri disabled:opacity-30">
+                                  +
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Mode B: day picker */}
+                          {form.weeklyMode === 'days' && (
+                            <div>
+                              <p className="text-xs text-text-sec mb-3">Which days?</p>
+                              <div className="flex flex-wrap gap-2">
+                                {days.map((d) => (
+                                  <button key={d.value}
+                                    onClick={() => toggleDay(d.value)}
+                                    className={`px-3 py-2 rounded-pill text-xs font-semibold border transition-all
+                                      ${form.weeklyDays.includes(d.value) ? 'bg-brand-primary text-white border-brand-primary' : 'bg-bg-surface border-border text-text-sec'}`}>
+                                    {d.label}
+                                  </button>
+                                ))}
+                              </div>
+                              {dayError && (
+                                <p className="text-xs text-red-500 mt-2">Pick at least one day</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <button onClick={handleStep1Next}
                     className={`w-full py-4 rounded-card font-semibold text-sm text-white transition-opacity ${form.frequency ? 'bg-brand-primary' : 'bg-brand-primary/40'}`}>
                     Next →
                   </button>

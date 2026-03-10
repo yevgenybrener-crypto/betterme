@@ -4,21 +4,51 @@ import { CATEGORIES } from '../../lib/constants'
 import ReflectModal from './ReflectModal'
 import GoalOptionsMenu from './GoalOptionsMenu'
 import { useStore } from '../../store/useStore'
+import { isTodayScheduled, nextScheduledDay, daysLeftInWeek } from '../../store/useStore'
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export default function GoalCard({ goal }) {
-  const { isCompleted, setCompletion, updateGoal, showToast, workdayPreset } = useStore()
+  const { isCompleted, setCompletion, updateGoal, showToast, workdayPreset, weeklyCount } = useStore()
   const [showReflect, setShowReflect] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
+
   const complete = isCompleted(goal)
   const category = CATEGORIES.find((c) => c.id === goal.category)
-  const urgency = getUrgency(goal, workdayPreset)
+
+  // Weekly mode helpers
+  const isWeekly = goal.frequency === 'weekly'
+  const isModeB = isWeekly && goal.weeklyMode === 'days'
+  const isModeA = isWeekly && goal.weeklyMode === 'times'
+  const isLegacyWeekly = isWeekly && !goal.weeklyMode
+
+  // Mode B: is today a scheduled day?
+  const todayScheduled = isModeB ? isTodayScheduled(goal.weeklyDays || []) : true
+  const nextDay = isModeB && !todayScheduled ? nextScheduledDay(goal.weeklyDays || []) : null
+
+  // Mode A: count & target
+  const count = (isModeA || isLegacyWeekly) ? weeklyCount(goal) : 0
+  const target = goal.weeklyTimes ?? 1
+  const daysLeft = daysLeftInWeek(workdayPreset)
+  const remaining = target - count
+
+  // Urgency
+  const urgency = getUrgency({ goal, complete, isModeA, isLegacyWeekly, isModeB, todayScheduled, remaining, daysLeft, workdayPreset })
+
+  // Can the user tap complete?
+  const canComplete = !complete && (isModeB ? todayScheduled : true)
 
   function handleComplete() {
-    if (complete) return
-    const newStreak = (goal.streak || 0) + 1
+    if (!canComplete) return
     setCompletion(goal, true)
+
+    const newStreak = (goal.streak || 0) + 1
     updateGoal(goal.id, { streak: newStreak })
-    setShowReflect(true)
+
+    // Show reflect only when fully done (Mode A: hit target; others: always)
+    const nowCount = count + 1
+    const isDone = isModeA ? nowCount >= target : true
+    if (isDone) setShowReflect(true)
 
     const milestones = [3, 7, 14, 30, 60, 100]
     if (milestones.includes(newStreak)) {
@@ -30,18 +60,21 @@ export default function GoalCard({ goal }) {
     }
   }
 
+  const borderColor = urgency === 'last' ? '#FF4757' : urgency === 'warn' ? '#F7B731' : undefined
+
   return (
     <>
       <motion.div layout
         className={`bg-bg-card rounded-card p-4 flex items-center gap-3 border shadow-card mb-2.5
-          ${urgency === 'last' ? 'border-l-[4px]' : urgency === 'warn' ? 'border-l-[4px]' : 'border-border'}
-          ${complete ? 'opacity-60 bg-bg-surface' : ''}`}
-        style={{ borderLeftColor: urgency === 'last' ? '#FF4757' : urgency === 'warn' ? '#F7B731' : undefined }}
-        onLongPress={() => setShowOptions(true)}
+          ${urgency ? 'border-l-[4px]' : 'border-border'}
+          ${complete ? 'opacity-60 bg-bg-surface' : ''}
+          ${isModeB && !todayScheduled ? 'opacity-80' : ''}`}
+        style={{ borderLeftColor: borderColor }}
+        onContextMenu={(e) => { e.preventDefault(); setShowOptions(true) }}
       >
         <span className="text-2xl flex-shrink-0">{category?.emoji}</span>
 
-        <div className="flex-1 min-w-0" onContextMenu={(e) => { e.preventDefault(); setShowOptions(true) }}>
+        <div className="flex-1 min-w-0">
           <p className={`font-semibold text-sm ${complete ? 'line-through text-text-sec' : 'text-text-pri'}`}>
             {goal.name}
           </p>
@@ -53,9 +86,25 @@ export default function GoalCard({ goal }) {
             {goal.streak > 0 && (
               <span className="text-[11px] font-semibold text-orange-500">🔥 {goal.streak}</span>
             )}
+
+            {/* Mode A: progress badge */}
+            {(isModeA || isLegacyWeekly) && !complete && (
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-pill bg-purple-100 text-purple-700">
+                {count}/{target} this week
+              </span>
+            )}
+
+            {/* Mode B: next day badge */}
+            {isModeB && !todayScheduled && nextDay && (
+              <span className="text-[11px] font-medium px-2 py-0.5 rounded-pill bg-bg-surface text-text-sec">
+                🗓️ Next: {nextDay}
+              </span>
+            )}
+
+            {/* Urgency badges */}
             {urgency === 'warn' && (
               <span className="text-[11px] font-medium px-2 py-0.5 rounded-pill bg-yellow-100 text-yellow-700">
-                🟡 {daysLeft(goal, workdayPreset)} days left
+                🟡 Need {remaining} more, {daysLeft} days left
               </span>
             )}
             {urgency === 'last' && (
@@ -73,8 +122,8 @@ export default function GoalCard({ goal }) {
         </button>
 
         {/* Complete button */}
-        <button onClick={handleComplete} disabled={complete}
-          className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center min-w-[44px] min-h-[44px]">
+        <button onClick={handleComplete} disabled={!canComplete}
+          className="flex-shrink-0 flex items-center justify-center min-w-[44px] min-h-[44px]">
           {complete ? (
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
               className="w-7 h-7 rounded-full bg-brand-accent flex items-center justify-center">
@@ -83,7 +132,7 @@ export default function GoalCard({ goal }) {
               </svg>
             </motion.div>
           ) : (
-            <div className="w-7 h-7 rounded-full border-2 border-brand-primary" />
+            <div className={`w-7 h-7 rounded-full border-2 ${canComplete ? 'border-brand-primary' : 'border-border'}`} />
           )}
         </button>
       </motion.div>
@@ -94,33 +143,38 @@ export default function GoalCard({ goal }) {
   )
 }
 
-function getUrgency(goal, workdayPreset) {
-  if (goal.frequency === 'daily') return null
-  const days = daysLeft(goal, workdayPreset)
-  if (days === 0) return 'last'
-  if (days <= 2) return 'warn'
-  return null
-}
-
-// Returns days remaining in the current period for urgency badges.
-// For weekly goals, counts days until the end of the week based on workday preset:
-//   sun-thu → week ends Saturday (weekStartDay=0, so last day = day 6 = Sat)
-//   mon-fri → week ends Sunday  (weekStartDay=1, so last day = day 7 mod 7 = Sun)
-function daysLeft(goal, workdayPreset = 'mon-fri') {
-  const now = new Date()
-  if (goal.frequency === 'weekly') {
-    const weekStartDay = workdayPreset === 'sun-thu' ? 0 : 1
-    const todayDay = now.getDay() // 0=Sun … 6=Sat
-    // How many days into the current week are we? (0 = first day of week)
-    const dayOfWeek = (todayDay - weekStartDay + 7) % 7
-    // Days left = 6 - dayOfWeek (week has 7 days, 0-indexed)
-    return 6 - dayOfWeek
+function getUrgency({ goal, complete, isModeA, isLegacyWeekly, isModeB, todayScheduled, remaining, daysLeft, workdayPreset }) {
+  if (complete) return null
+  if (goal.frequency !== 'weekly' && goal.frequency !== 'monthly') {
+    // Daily: no urgency
+    return null
   }
   if (goal.frequency === 'monthly') {
+    const now = new Date()
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-    return lastDay - now.getDate()
+    const d = lastDay - now.getDate()
+    if (d === 0) return 'last'
+    if (d <= 2) return 'warn'
+    return null
   }
-  return 99
+  // Weekly
+  if (isModeB) {
+    if (!todayScheduled) return null // off-day, no urgency
+    // On a scheduled day — is it the last scheduled day of the week?
+    const weekStartDay = workdayPreset === 'sun-thu' ? 0 : 1
+    const todayDay = new Date().getDay()
+    const remainingScheduled = (goal.weeklyDays || []).filter(d => {
+      const daysFromToday = (d - todayDay + 7) % 7
+      return daysFromToday > 0
+    })
+    if (remainingScheduled.length === 0) return 'last' // no more scheduled days this week
+    return null
+  }
+  // Mode A or legacy
+  if (remaining <= 0) return null
+  if (daysLeft === 0 && remaining > 0) return 'last'
+  if (remaining > daysLeft) return 'warn'
+  return null
 }
 
 function getMilestoneMessage(streak) {

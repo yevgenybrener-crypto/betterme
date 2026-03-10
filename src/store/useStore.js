@@ -5,44 +5,64 @@ import { persist } from 'zustand/middleware'
 export const todayKey = () => new Date().toISOString().slice(0, 10)
 
 // Returns the week start day (0=Sun, 1=Mon) based on workday preset.
-// sun-thu preset (Middle East / Israel) → week starts Sunday.
-// mon-fri preset or ISO default → week starts Monday.
-// Custom preset → detect from Intl.Locale, fallback to Monday.
 export const getWeekStartDay = (workdayPreset) => {
   if (workdayPreset === 'sun-thu') return 0
   if (workdayPreset === 'mon-fri') return 1
-  // Custom: use browser locale to detect regional week start
   try {
     const locale = new Intl.Locale(navigator.language)
-    // weekInfo.firstDay: 0=Sun, 1=Mon, 6=Sat (not all browsers support this yet)
     if (locale.weekInfo?.firstDay !== undefined) return locale.weekInfo.firstDay
   } catch (_) { /* ignore */ }
-  return 1 // safe fallback: ISO Monday
+  return 1
 }
 
-// Returns current period key for a goal.
-// Weekly goals use a locale-aware week key: YYYY-Www-<startDay>
-// e.g. '2026-W10-0' for a Sun-start week, '2026-W10-1' for Mon-start.
+// Returns the week period key anchored to the week start day.
+// Format: YYYY-MM-DD-W<startDay> where date is the week's start date.
+export const weekPeriodKey = (workdayPreset = 'mon-fri') => {
+  const now = new Date()
+  const weekStart = getWeekStartDay(workdayPreset)
+  const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+  const dayOfWeek = (d.getUTCDay() - weekStart + 7) % 7
+  const ws = new Date(d)
+  ws.setUTCDate(d.getUTCDate() - dayOfWeek)
+  const y = ws.getUTCFullYear()
+  const m = String(ws.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(ws.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}-W${weekStart}`
+}
+
+// Returns current period key for a goal (legacy/daily/monthly).
 export const periodKey = (goal, workdayPreset = 'mon-fri') => {
   const now = new Date()
   if (goal.frequency === 'daily') return todayKey()
-  if (goal.frequency === 'weekly') {
-    const weekStart = getWeekStartDay(workdayPreset)
-    const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
-    // Shift so that weekStart becomes day 0 of our numbering
-    const dayOfWeek = (d.getUTCDay() - weekStart + 7) % 7
-    // Rewind to the start of this week
-    const weekStartDate = new Date(d)
-    weekStartDate.setUTCDate(d.getUTCDate() - dayOfWeek)
-    const y = weekStartDate.getUTCFullYear()
-    const m = String(weekStartDate.getUTCMonth() + 1).padStart(2, '0')
-    const day = String(weekStartDate.getUTCDate()).padStart(2, '0')
-    return `${y}-${m}-${day}-W${weekStart}`
-  }
+  if (goal.frequency === 'weekly') return weekPeriodKey(workdayPreset)
   if (goal.frequency === 'monthly') {
     return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
   }
   return todayKey()
+}
+
+// Returns days remaining in the current week period.
+export const daysLeftInWeek = (workdayPreset = 'mon-fri') => {
+  const weekStart = getWeekStartDay(workdayPreset)
+  const todayDay = new Date().getDay()
+  const dayOfWeek = (todayDay - weekStart + 7) % 7
+  return 6 - dayOfWeek
+}
+
+// Returns the next scheduled day name for Mode B goals.
+export const nextScheduledDay = (weeklyDays = []) => {
+  if (!weeklyDays.length) return null
+  const todayDay = new Date().getDay()
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const sorted = [...weeklyDays].sort((a, b) => a - b)
+  // Find next day >= today
+  const next = sorted.find(d => d > todayDay) ?? sorted[0]
+  return dayNames[next]
+}
+
+// Returns whether today is a scheduled day for a Mode B goal.
+export const isTodayScheduled = (weeklyDays = []) => {
+  return weeklyDays.includes(new Date().getDay())
 }
 
 export const useStore = create(
@@ -71,15 +91,62 @@ export const useStore = create(
       })),
       deleteGoal: (id) => set((s) => ({ goals: s.goals.filter((g) => g.id !== id) })),
 
-      // Completions keyed by goalId_periodKey e.g. 'abc_2026-03-07'
-      completions: {},
-      isCompleted: (goal) => {
-        const key = `${goal.id}_${periodKey(goal, get().workdayPreset)}`
+      // --- Completion helpers ---
+
+      // Mode B (specific days): is today's daily key completed?
+      isDayCompleted: (goal) => {
+        if (goal.frequency !== 'weekly' || goal.weeklyMode !== 'days') return false
+        const key = `${goal.id}_${todayKey()}`
         return !!get().completions[key]
       },
+
+      // Mode A (times): how many completions this week?
+      weeklyCount: (goal) => {
+        if (goal.frequency !== 'weekly') return 0
+        const key = `${goal.id}_${weekPeriodKey(get().workdayPreset)}`
+        return get().completions[key] || 0
+      },
+
+      // Universal: is this goal "done" for its current period?
+      isCompleted: (goal) => {
+        const { workdayPreset, completions } = get()
+        if (goal.frequency !== 'weekly') {
+          const key = `${goal.id}_${periodKey(goal, workdayPreset)}`
+          return !!completions[key]
+        }
+        // Mode B: done = today's day is scheduled AND today is completed
+        if (goal.weeklyMode === 'days') {
+          if (!isTodayScheduled(goal.weeklyDays || [])) return false
+          return !!completions[`${goal.id}_${todayKey()}`]
+        }
+        // Mode A (times) or legacy: done = count >= target
+        const target = goal.weeklyTimes ?? 1
+        const key = `${goal.id}_${weekPeriodKey(workdayPreset)}`
+        return (completions[key] || 0) >= target
+      },
+
+      // Universal: mark completion
       setCompletion: (goal, value) => {
-        const key = `${goal.id}_${periodKey(goal, get().workdayPreset)}`
-        set((s) => ({ completions: { ...s.completions, [key]: value } }))
+        const { workdayPreset } = get()
+        if (goal.frequency === 'weekly') {
+          if (goal.weeklyMode === 'days') {
+            // Mode B: toggle today's daily key
+            const key = `${goal.id}_${todayKey()}`
+            set((s) => ({ completions: { ...s.completions, [key]: value } }))
+          } else {
+            // Mode A: increment count (or reset on value=false)
+            const key = `${goal.id}_${weekPeriodKey(workdayPreset)}`
+            set((s) => {
+              const current = s.completions[key] || 0
+              const target = goal.weeklyTimes ?? 1
+              const newVal = value ? Math.min(current + 1, target) : 0
+              return { completions: { ...s.completions, [key]: newVal } }
+            })
+          }
+        } else {
+          const key = `${goal.id}_${periodKey(goal, workdayPreset)}`
+          set((s) => ({ completions: { ...s.completions, [key]: value } }))
+        }
       },
 
       // Journal entries
