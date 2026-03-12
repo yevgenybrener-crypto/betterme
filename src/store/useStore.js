@@ -155,6 +155,18 @@ export const useStore = create(
         }
       },
 
+      // Toggle a specific day's completion (used by WeekGrid retroactive taps)
+      // Does NOT update streak — streak is only updated from GoalCard live completions
+      toggleDayCompletion: (goal, dateISO) => {
+        const key = `${goal.id}_${dateISO}`
+        set((s) => ({
+          completions: {
+            ...s.completions,
+            [key]: !s.completions[key],
+          },
+        }))
+      },
+
       // Journal entries
       journalEntries: [],
       addJournalEntry: (entry) => set((s) => ({
