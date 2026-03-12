@@ -63,6 +63,7 @@ export default function GoalDetailModal({ goal, open, onClose }) {
 
   // Load intention when week changes
   useEffect(() => {
+    if (!goal) return
     setText(getIntention(goal, currentWeekKey))
     setSaved(false)
   }, [weekOffset, goal?.id])

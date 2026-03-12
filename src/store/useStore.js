@@ -158,14 +158,16 @@ export const useStore = create(
       // Weekly intentions — per-goal per-week planning text
       weeklyIntentions: {},
       setIntention: (goal, weekKey, text) => {
+        if (!goal) return
         const key = `${goal.id}_${weekKey}`
         set((s) => ({
-          weeklyIntentions: { ...s.weeklyIntentions, [key]: text },
+          weeklyIntentions: { ...(s.weeklyIntentions || {}), [key]: text },
         }))
       },
       getIntention: (goal, weekKey) => {
+        if (!goal) return ''
         const key = `${goal.id}_${weekKey}`
-        return get().weeklyIntentions[key] || ''
+        return (get().weeklyIntentions || {})[key] || ''
       },
 
       // Toggle a specific day's completion (used by WeekGrid retroactive taps)
