@@ -5,6 +5,7 @@ export const CATEGORIES = [
   { id: 'smarter',   label: 'Get Smarter',        emoji: '🧠', color: '#4DABF7', tailwind: 'category-smarter' },
   { id: 'social',    label: 'Social Connection',  emoji: '🤝', color: '#DA77F2', tailwind: 'category-social' },
   { id: 'fun',       label: 'Fun & Leisure',      emoji: '🎭', color: '#FFD43B', tailwind: 'category-fun' },
+  { id: 'work',      label: 'Work',               emoji: '💼', color: '#5C7CFA', tailwind: 'category-work' },
 ]
 
 export const TEMPLATES = {
@@ -14,6 +15,7 @@ export const TEMPLATES = {
   smarter:   ['📚 Read 20 pages', '🎧 Listen to a podcast', '✍️ Deep work session'],
   social:    ['☕ Reach out to someone new', '📅 Plan a meetup'],
   fun:       ['🎭 Book an event', '🎨 Creative hour', '🎵 Live music'],
+  work:      ['📋 Review priorities', '📧 Clear inbox', '🎯 Ship one thing', '📊 Weekly review', '🤝 1:1 with team'],
 }
 
 export const FREQUENCIES = [
