@@ -2,8 +2,14 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { getSimulatedDate } from '../lib/simulatedDate'
 
-// Returns today's date key e.g. '2026-03-07'
-export const todayKey = () => getSimulatedDate().toISOString().slice(0, 10)
+// Returns today's date key e.g. '2026-03-07' — uses LOCAL date parts to avoid UTC shift
+export const todayKey = () => {
+  const d = getSimulatedDate()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
 
 // Returns the week start day (0=Sun, 1=Mon) based on workday preset.
 export const getWeekStartDay = (workdayPreset) => {
