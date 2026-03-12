@@ -1,8 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { getSimulatedDate } from '../lib/simulatedDate'
 
 // Returns today's date key e.g. '2026-03-07'
-export const todayKey = () => new Date().toISOString().slice(0, 10)
+export const todayKey = () => getSimulatedDate().toISOString().slice(0, 10)
 
 // Returns the week start day (0=Sun, 1=Mon) based on workday preset.
 export const getWeekStartDay = (workdayPreset) => {
@@ -18,7 +19,7 @@ export const getWeekStartDay = (workdayPreset) => {
 // Returns the week period key anchored to the week start day.
 // Format: YYYY-MM-DD-W<startDay> where date is the week's start date.
 export const weekPeriodKey = (workdayPreset = 'mon-fri') => {
-  const now = new Date()
+  const now = getSimulatedDate()
   const weekStart = getWeekStartDay(workdayPreset)
   const d = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
   const dayOfWeek = (d.getUTCDay() - weekStart + 7) % 7
@@ -32,7 +33,7 @@ export const weekPeriodKey = (workdayPreset = 'mon-fri') => {
 
 // Returns current period key for a goal (legacy/daily/monthly).
 export const periodKey = (goal, workdayPreset = 'mon-fri') => {
-  const now = new Date()
+  const now = getSimulatedDate()
   if (goal.frequency === 'daily') return todayKey()
   if (goal.frequency === 'weekly') return weekPeriodKey(workdayPreset)
   if (goal.frequency === 'monthly') {
@@ -44,7 +45,7 @@ export const periodKey = (goal, workdayPreset = 'mon-fri') => {
 // Returns days remaining in the current week period.
 export const daysLeftInWeek = (workdayPreset = 'mon-fri') => {
   const weekStart = getWeekStartDay(workdayPreset)
-  const todayDay = new Date().getDay()
+  const todayDay = getSimulatedDate().getDay()
   const dayOfWeek = (todayDay - weekStart + 7) % 7
   return 6 - dayOfWeek
 }
@@ -52,17 +53,16 @@ export const daysLeftInWeek = (workdayPreset = 'mon-fri') => {
 // Returns the next scheduled day name for Mode B goals.
 export const nextScheduledDay = (weeklyDays = []) => {
   if (!weeklyDays.length) return null
-  const todayDay = new Date().getDay()
+  const todayDay = getSimulatedDate().getDay()
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const sorted = [...weeklyDays].sort((a, b) => a - b)
-  // Find next day >= today
   const next = sorted.find(d => d > todayDay) ?? sorted[0]
   return dayNames[next]
 }
 
 // Returns whether today is a scheduled day for a Mode B goal.
 export const isTodayScheduled = (weeklyDays = []) => {
-  return weeklyDays.includes(new Date().getDay())
+  return weeklyDays.includes(getSimulatedDate().getDay())
 }
 
 export const useStore = create(

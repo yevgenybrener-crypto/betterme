@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore'
 import GoalCard from '../components/goals/GoalCard'
 import ProgressRing from '../components/dashboard/ProgressRing'
 import { CATEGORIES } from '../lib/constants'
+import { getSimulatedDate } from '../lib/simulatedDate'
 
 export default function Home() {
   const { goals, completions, user } = useStore()
@@ -73,7 +74,7 @@ export default function Home() {
 }
 
 function isActiveToday(goal) {
-  const day = new Date().getDay()
+  const day = getSimulatedDate().getDay()
   if (goal.frequency === 'daily') {
     if (goal.weekdaysOnly && (day === 0 || day === 6)) return false
     return true
@@ -82,7 +83,7 @@ function isActiveToday(goal) {
 }
 
 function getGreeting() {
-  const h = new Date().getHours()
+  const h = getSimulatedDate().getHours()
   if (h < 12) return 'Good morning'
   if (h < 18) return 'Good afternoon'
   return 'Good evening'

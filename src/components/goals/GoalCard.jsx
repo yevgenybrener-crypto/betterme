@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { CATEGORIES } from '../../lib/constants'
 import ReflectModal from './ReflectModal'
 import GoalOptionsMenu from './GoalOptionsMenu'
-import { useStore } from '../../store/useStore'
-import { isTodayScheduled, nextScheduledDay, daysLeftInWeek } from '../../store/useStore'
+import { useStore, isTodayScheduled, nextScheduledDay, daysLeftInWeek } from '../../store/useStore'
+import { getSimulatedDate } from '../../lib/simulatedDate'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -150,7 +150,7 @@ function getUrgency({ goal, complete, isModeA, isLegacyWeekly, isModeB, todaySch
     return null
   }
   if (goal.frequency === 'monthly') {
-    const now = new Date()
+    const now = getSimulatedDate()
     const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
     const d = lastDay - now.getDate()
     if (d === 0) return 'last'
@@ -162,7 +162,7 @@ function getUrgency({ goal, complete, isModeA, isLegacyWeekly, isModeB, todaySch
     if (!todayScheduled) return null // off-day, no urgency
     // On a scheduled day — is it the last scheduled day of the week?
     const weekStartDay = workdayPreset === 'sun-thu' ? 0 : 1
-    const todayDay = new Date().getDay()
+    const todayDay = getSimulatedDate().getDay()
     const remainingScheduled = (goal.weeklyDays || []).filter(d => {
       const daysFromToday = (d - todayDay + 7) % 7
       return daysFromToday > 0
