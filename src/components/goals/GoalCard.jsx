@@ -3,15 +3,21 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { CATEGORIES } from '../../lib/constants'
 import ReflectModal from './ReflectModal'
 import GoalOptionsMenu from './GoalOptionsMenu'
-import { useStore, isTodayScheduled, nextScheduledDay, daysLeftInWeek } from '../../store/useStore'
+import GoalDetailModal from './GoalDetailModal'
+import { useStore, isTodayScheduled, nextScheduledDay, daysLeftInWeek, weekPeriodKey } from '../../store/useStore'
 import { getSimulatedDate } from '../../lib/simulatedDate'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export default function GoalCard({ goal }) {
-  const { isCompleted, setCompletion, updateGoal, showToast, workdayPreset, weeklyCount } = useStore()
+  const { isCompleted, setCompletion, updateGoal, showToast, workdayPreset, weeklyCount, getIntention } = useStore()
   const [showReflect, setShowReflect] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
+  const [showDetail, setShowDetail] = useState(false)
+
+  const intention = goal.frequency === 'weekly'
+    ? getIntention(goal, weekPeriodKey(workdayPreset))
+    : ''
 
   const complete = isCompleted(goal)
   const category = CATEGORIES.find((c) => c.id === goal.category)
@@ -74,7 +80,8 @@ export default function GoalCard({ goal }) {
       >
         <span className="text-2xl flex-shrink-0">{category?.emoji}</span>
 
-        <div className="flex-1 min-w-0">
+        {/* Card body — tap opens detail modal */}
+        <div className="flex-1 min-w-0" onClick={() => setShowDetail(true)}>
           <p className={`font-semibold text-sm ${complete ? 'line-through text-text-sec' : 'text-text-pri'}`}>
             {goal.name}
           </p>
@@ -113,6 +120,12 @@ export default function GoalCard({ goal }) {
               </span>
             )}
           </div>
+          {/* Intention preview */}
+          {intention && (
+            <p className="text-[11px] text-text-sec mt-1 truncate max-w-[220px]">
+              📝 {intention}
+            </p>
+          )}
         </div>
 
         {/* Options button */}
@@ -139,6 +152,7 @@ export default function GoalCard({ goal }) {
 
       <ReflectModal open={showReflect} goal={goal} onClose={() => setShowReflect(false)} />
       <GoalOptionsMenu open={showOptions} goal={goal} onClose={() => setShowOptions(false)} />
+      <GoalDetailModal open={showDetail} goal={goal} onClose={() => setShowDetail(false)} />
     </>
   )
 }

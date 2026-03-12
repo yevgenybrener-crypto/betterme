@@ -155,6 +155,19 @@ export const useStore = create(
         }
       },
 
+      // Weekly intentions — per-goal per-week planning text
+      weeklyIntentions: {},
+      setIntention: (goal, weekKey, text) => {
+        const key = `${goal.id}_${weekKey}`
+        set((s) => ({
+          weeklyIntentions: { ...s.weeklyIntentions, [key]: text },
+        }))
+      },
+      getIntention: (goal, weekKey) => {
+        const key = `${goal.id}_${weekKey}`
+        return get().weeklyIntentions[key] || ''
+      },
+
       // Toggle a specific day's completion (used by WeekGrid retroactive taps)
       // Does NOT update streak — streak is only updated from GoalCard live completions
       toggleDayCompletion: (goal, dateISO) => {

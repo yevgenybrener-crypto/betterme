@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { useStore } from '../../store/useStore'
+import { useStore, getWeekStartDay } from '../../store/useStore'
 import { CATEGORIES } from '../../lib/constants'
 import { getSimulatedDate } from '../../lib/simulatedDate'
-import { getWeekStartDay } from '../../store/useStore'
+import GoalDetailModal from '../goals/GoalDetailModal'
 
 // Local ISO string (avoids UTC timezone shift)
 function localISO(date) {
@@ -29,13 +29,13 @@ function getWeekDates(anchorDate, weekStartDay) {
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export default function WeekGrid() {
-  const { goals, completions, workdayPreset, toggleDayCompletion, weeklyCount } = useStore()
+  const { goals, completions, workdayPreset, toggleDayCompletion, weeklyCount, getIntention } = useStore()
   const weekStartDay = getWeekStartDay(workdayPreset)
   const today = getSimulatedDate()
   const todayISO = localISO(today)
 
-  // Week offset: 0 = current week, -1 = last week, etc.
   const [weekOffset, setWeekOffset] = useState(0)
+  const [detailGoal, setDetailGoal] = useState(null)
 
   // Anchor date for the displayed week
   const anchorDate = new Date(today)
@@ -48,6 +48,15 @@ export default function WeekGrid() {
   const gridGoals = activeGoals.filter((g) =>
     g.frequency === 'daily' || g.frequency === 'weekly'
   )
+
+  // Week period key for the displayed week
+  const displayedWeekKey = (() => {
+    const ws = weekDates[0]
+    const y = ws.getFullYear()
+    const m = String(ws.getMonth() + 1).padStart(2, '0')
+    const d = String(ws.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}-W${weekStartDay}`
+  })()
 
   // Format date range label
   const fmtDate = (d) => `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`
@@ -77,7 +86,7 @@ export default function WeekGrid() {
     goal.frequency === 'weekly' && goal.weeklyMode !== 'days'
 
   return (
-    <div className="px-3">
+    <><div className="px-3">
       {/* Week navigation */}
       <div className="flex items-center justify-between mb-3 px-1">
         <button
@@ -138,8 +147,12 @@ export default function WeekGrid() {
               <div key={goal.id}
                 className={`flex items-center min-h-[52px] py-1.5 ${idx < gridGoals.length - 1 ? 'border-b border-border/50' : ''}`}>
 
-                {/* Goal label */}
-                <div className="w-[115px] flex-shrink-0 flex items-start gap-1.5 px-2.5 py-1">
+                {/* Goal label — tap opens detail modal */}
+                <div className="w-[115px] flex-shrink-0 flex items-start gap-1.5 px-2.5 py-1"
+                  onClick={() => setDetailGoal(goal)}>
+                  <span className="text-[10px] flex-shrink-0 mt-1 leading-none">
+                    {getIntention(goal, displayedWeekKey) ? '📝' : ''}
+                  </span>
                   <span className="text-[15px] flex-shrink-0 mt-0.5">{cat?.emoji}</span>
                   <span className="text-[11px] font-semibold text-text-pri leading-snug line-clamp-2 flex-1">
                     {goal.name}
@@ -202,5 +215,11 @@ export default function WeekGrid() {
         )}
       </div>
     </div>
+
+    <GoalDetailModal
+      open={!!detailGoal}
+      goal={detailGoal}
+      onClose={() => setDetailGoal(null)}
+    /></>
   )
 }
