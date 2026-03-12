@@ -6,6 +6,7 @@ import ProgressRing from '../components/dashboard/ProgressRing'
 import WeekGrid from '../components/dashboard/WeekGrid'
 import { CATEGORIES } from '../lib/constants'
 import { getSimulatedDate } from '../lib/simulatedDate'
+import { todayKey, weekPeriodKey, getWeekStartDay } from '../store/useStore'
 
 export default function Home() {
   const { goals, completions, user } = useStore()
@@ -25,6 +26,7 @@ export default function Home() {
   const greeting = getGreeting()
   const completedToday = todayGoals.filter((g) => completions[g.id]).length
   const ringGoals = [...weeklyGoals, ...monthlyGoals]
+  const { workdayPreset } = useStore()
 
   return (
     <div className="min-h-screen bg-bg-base pb-20">
@@ -81,9 +83,9 @@ export default function Home() {
                 <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
                   {ringGoals.map((g) => {
                     const cat = CATEGORIES.find((c) => c.id === g.category)
-                    const completed = completions[g.id] ? 1 : 0
+                    const { value, max } = getRingProgress(g, completions, workdayPreset)
                     return (
-                      <ProgressRing key={g.id} value={completed} max={1}
+                      <ProgressRing key={g.id} value={value} max={max}
                         color={cat?.color || '#6C63FF'} label={cat?.label?.split(' ')[0]} period={g.frequency} />
                     )
                   })}
@@ -117,4 +119,50 @@ function getGreeting() {
   if (h < 12) return 'Good morning'
   if (h < 18) return 'Good afternoon'
   return 'Good evening'
+}
+
+function localISO(date) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+// Returns { value, max } for the progress ring of a goal
+function getRingProgress(goal, completions, workdayPreset) {
+  if (goal.frequency === 'monthly') {
+    const key = `${goal.id}_${goal.frequency === 'monthly'
+      ? (() => { const n = getSimulatedDate(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}` })()
+      : ''}`
+    return { value: completions[key] ? 1 : 0, max: 1 }
+  }
+
+  if (goal.frequency === 'weekly') {
+    // Mode A (times) or legacy
+    if (goal.weeklyMode !== 'days') {
+      const key = `${goal.id}_${weekPeriodKey(workdayPreset)}`
+      const count = completions[key] || 0
+      const target = goal.weeklyTimes ?? 1
+      return { value: count, max: target }
+    }
+    // Mode B (specific days) — count how many scheduled days this week are completed
+    const weekStart = getWeekStartDay(workdayPreset)
+    const today = getSimulatedDate()
+    const dayOfWeek = (today.getDay() - weekStart + 7) % 7
+    const monday = new Date(today)
+    monday.setDate(today.getDate() - dayOfWeek)
+    const scheduledDays = goal.weeklyDays || []
+    let completed = 0
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday)
+      d.setDate(monday.getDate() + i)
+      if (scheduledDays.includes(d.getDay())) {
+        const key = `${goal.id}_${localISO(d)}`
+        if (completions[key]) completed++
+      }
+    }
+    return { value: completed, max: scheduledDays.length }
+  }
+
+  return { value: 0, max: 1 }
 }
