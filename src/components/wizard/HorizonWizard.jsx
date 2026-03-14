@@ -30,6 +30,7 @@ const defaultForm = {
   type: 'binary',
   target: '',
   weekdaysOnly: false,
+  weekendsOnly: false,
 }
 
 export default function HorizonWizard() {
@@ -51,6 +52,7 @@ export default function HorizonWizard() {
       type: form.type,
       target: form.target,
       weekdaysOnly: form.weekdaysOnly,
+      weekendsOnly: form.weekendsOnly,
       streak: 0,
       archived: false,
       createdAt: new Date().toISOString(),
@@ -136,17 +138,36 @@ export default function HorizonWizard() {
                     ))}
                   </div>
 
-                  {/* Daily: weekdays toggle */}
+                  {/* Daily: day schedule picker */}
                   {form.frequency === 'daily' && (
-                    <div className="bg-bg-card rounded-card p-4 flex items-center justify-between mb-5 border border-border">
-                      <div>
-                        <p className="font-semibold text-sm text-text-pri">Weekdays only</p>
-                        <p className="text-xs text-text-sec mt-0.5">Skip weekends</p>
+                    <div className="bg-bg-card rounded-card p-4 mb-5 border border-border">
+                      <p className="font-semibold text-sm text-text-pri mb-3">Schedule</p>
+                      <div className="flex gap-2">
+                        {[
+                          { label: 'Every day', value: 'all' },
+                          { label: 'Weekdays', value: 'weekdays' },
+                          { label: 'Weekends', value: 'weekends' },
+                        ].map(opt => {
+                          const active =
+                            opt.value === 'weekdays' ? form.weekdaysOnly :
+                            opt.value === 'weekends' ? form.weekendsOnly :
+                            !form.weekdaysOnly && !form.weekendsOnly
+                          return (
+                            <button key={opt.value}
+                              onClick={() => setForm({
+                                ...form,
+                                weekdaysOnly: opt.value === 'weekdays',
+                                weekendsOnly: opt.value === 'weekends',
+                              })}
+                              className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all
+                                ${active
+                                  ? 'bg-brand-primary text-white shadow-sm'
+                                  : 'bg-bg-surface text-text-sec border border-border'}`}>
+                              {opt.label}
+                            </button>
+                          )
+                        })}
                       </div>
-                      <button onClick={() => setForm({ ...form, weekdaysOnly: !form.weekdaysOnly })}
-                        className={`w-11 h-6 rounded-full transition-all flex items-center px-1 ${form.weekdaysOnly ? 'bg-brand-primary justify-end' : 'bg-border justify-start'}`}>
-                        <div className="w-4 h-4 bg-white rounded-full shadow" />
-                      </button>
                     </div>
                   )}
 

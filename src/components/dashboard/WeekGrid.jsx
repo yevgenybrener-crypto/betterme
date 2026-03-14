@@ -71,6 +71,7 @@ export default function WeekGrid() {
     const dayNum = date.getDay()
     if (goal.frequency === 'daily') {
       if (goal.weekdaysOnly && (dayNum === 0 || dayNum === 6)) return false
+      if (goal.weekendsOnly && !(dayNum === 0 || dayNum === 6)) return false
       return true
     }
     if (goal.frequency === 'weekly') {

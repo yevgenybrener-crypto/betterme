@@ -109,6 +109,7 @@ function isActiveToday(goal) {
   const day = getSimulatedDate().getDay()
   if (goal.frequency === 'daily') {
     if (goal.weekdaysOnly && (day === 0 || day === 6)) return false
+    if (goal.weekendsOnly && !(day === 0 || day === 6)) return false
     return true
   }
   return true
