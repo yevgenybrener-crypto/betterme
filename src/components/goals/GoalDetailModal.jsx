@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useStore, weekPeriodKey, getWeekStartDay } from '../../store/useStore'
+import { useStore, getWeekStartDay } from '../../store/useStore'
 import { CATEGORIES } from '../../lib/constants'
 import { getSimulatedDate } from '../../lib/simulatedDate'
 
+// ─── Date helpers ─────────────────────────────────────────────────────────────
 function localISO(date) {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -11,26 +12,16 @@ function localISO(date) {
   return `${y}-${m}-${d}`
 }
 
-function weekLabel(offset) {
-  if (offset === 0) return 'This week'
-  if (offset === 1) return 'Next week'
-  if (offset === -1) return 'Last week'
-  if (offset > 1) return `In ${offset} weeks`
-  return `${Math.abs(offset)} weeks ago`
+function monthKey(offset) {
+  const d = getSimulatedDate()
+  const shifted = new Date(d.getFullYear(), d.getMonth() + offset, 1)
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}`
 }
 
-function getWeekRange(offset, workdayPreset) {
-  const today = getSimulatedDate()
-  const anchor = new Date(today)
-  anchor.setDate(today.getDate() + offset * 7)
-  const weekStart = getWeekStartDay(workdayPreset)
-  const dayOfWeek = (anchor.getDay() - weekStart + 7) % 7
-  const start = new Date(anchor)
-  start.setDate(anchor.getDate() - dayOfWeek)
-  const end = new Date(start)
-  end.setDate(start.getDate() + 6)
-  const fmt = (d) => `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`
-  return { label: `${fmt(start)} – ${fmt(end)}`, key: weekPeriodKeyForOffset(offset, workdayPreset) }
+function monthLabel(offset) {
+  const d = getSimulatedDate()
+  const shifted = new Date(d.getFullYear(), d.getMonth() + offset, 1)
+  return shifted.toLocaleString('default', { month: 'long', year: 'numeric' })
 }
 
 function weekPeriodKeyForOffset(offset, workdayPreset) {
@@ -47,62 +38,186 @@ function weekPeriodKeyForOffset(offset, workdayPreset) {
   return `${y}-${m}-${d}-W${weekStart}`
 }
 
-const MAX_FUTURE = 4
-const MAX_PAST = 4
+function getWeekDatesForOffset(offset, workdayPreset) {
+  const today = getSimulatedDate()
+  const anchor = new Date(today)
+  anchor.setDate(today.getDate() + offset * 7)
+  const weekStart = getWeekStartDay(workdayPreset)
+  const dayOfWeek = (anchor.getDay() - weekStart + 7) % 7
+  const ws = new Date(anchor)
+  ws.setDate(anchor.getDate() - dayOfWeek)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(ws)
+    d.setDate(ws.getDate() + i)
+    return d
+  })
+}
 
-export default function GoalDetailModal({ goal, open, onClose }) {
-  const { workdayPreset, getIntention, setIntention, journalEntries } = useStore()
-  const [weekOffset, setWeekOffset] = useState(0)
+function weekRangeLabel(offset, workdayPreset) {
+  const dates = getWeekDatesForOffset(offset, workdayPreset)
+  const fmt = (d) => `${d.toLocaleString('default', { month: 'short' })} ${d.getDate()}`
+  if (offset === 0) return 'This week'
+  if (offset === 1) return 'Next week'
+  if (offset === -1) return 'Last week'
+  return `${fmt(dates[0])} – ${fmt(dates[6])}`
+}
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const MAX_NAV = 4
+
+// ─── Plan type detection ──────────────────────────────────────────────────────
+function getPlanType(goal) {
+  if (!goal) return null
+  if (goal.frequency === 'monthly') return 'monthly'
+  if (goal.frequency === 'weekly' && goal.weeklyMode === 'days') return 'modeB'
+  if (goal.frequency === 'weekly') return 'modeA'
+  return null // daily — no plan
+}
+
+// ─── Single intention field ───────────────────────────────────────────────────
+function IntentionField({ intentionKey, isPast, getIntention, setIntention, goal, placeholder }) {
   const [text, setText] = useState('')
   const [saved, setSaved] = useState(false)
-  const [showAllJournal, setShowAllJournal] = useState(false)
-  const textareaRef = useRef(null)
 
-  const { label: rangeLabel, key: currentWeekKey } = getWeekRange(weekOffset, workdayPreset)
-  const isPast = weekOffset < 0
-
-  // Load intention when week changes
   useEffect(() => {
-    if (!goal) return
-    setText(getIntention(goal, currentWeekKey))
+    setText(getIntention(goal, intentionKey))
     setSaved(false)
-  }, [weekOffset, goal?.id])
-
-  // Reset offset when modal opens
-  useEffect(() => {
-    if (open) {
-      setWeekOffset(0)
-      setShowAllJournal(false)
-    }
-  }, [open])
+  }, [intentionKey, goal?.id])
 
   function handleBlur() {
     if (isPast) return
-    setIntention(goal, currentWeekKey, text)
+    setIntention(goal, intentionKey, text)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
 
+  if (isPast) {
+    return (
+      <div className="bg-bg-surface rounded-card px-4 py-3 min-h-[52px]">
+        {text
+          ? <p className="text-sm text-text-sec">📝 {text}</p>
+          : <p className="text-sm text-text-mut italic">No plan was set</p>
+        }
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={handleBlur}
+        placeholder={placeholder}
+        className="w-full min-h-[72px] px-4 py-3 rounded-card border-2 bg-bg-surface text-base text-text-pri placeholder:text-text-mut resize-none focus:outline-none leading-relaxed transition-colors"
+        style={{ borderColor: saved ? '#43E97B' : text ? '#6C63FF' : 'rgba(108,99,255,0.3)' }}
+      />
+      <p className="text-[10px] text-text-mut mt-1 pl-1">
+        {saved ? '✅ Saved' : '💾 Auto-saves when you leave the field'}
+      </p>
+    </>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+export default function GoalDetailModal({ goal, open, onClose }) {
+  const { workdayPreset, getIntention, setIntention, journalEntries } = useStore()
+  const [offset, setOffset] = useState(0)
+  const [showAllJournal, setShowAllJournal] = useState(false)
+
+  const planType = getPlanType(goal)
+
+  // Reset on open
+  useEffect(() => {
+    if (open) {
+      setOffset(0)
+      setShowAllJournal(false)
+    }
+  }, [open])
+
   if (!goal) return null
 
   const category = CATEGORIES.find((c) => c.id === goal.category)
-
-  // Filter journal entries for this goal
   const goalJournal = journalEntries.filter((e) => e.goalId === goal.id)
   const visibleJournal = showAllJournal ? goalJournal : goalJournal.slice(0, 3)
+
+  const isPast = offset < 0
+
+  // ── Period label for navigator ──
+  let periodLabel = ''
+  if (planType === 'monthly') {
+    periodLabel = monthLabel(offset)
+  } else {
+    periodLabel = weekRangeLabel(offset, workdayPreset)
+  }
+
+  // ── Plan section content ──
+  let planContent = null
+
+  if (planType === 'modeA') {
+    const key = weekPeriodKeyForOffset(offset, workdayPreset)
+    planContent = (
+      <IntentionField
+        intentionKey={key}
+        isPast={isPast}
+        getIntention={getIntention}
+        setIntention={setIntention}
+        goal={goal}
+        placeholder="What's the plan this week? e.g. John from DevOps"
+      />
+    )
+  } else if (planType === 'modeB') {
+    const weekDates = getWeekDatesForOffset(offset, workdayPreset)
+    const scheduledDays = goal.weeklyDays || []
+    const scheduledDates = weekDates.filter(d => scheduledDays.includes(d.getDay()))
+    planContent = (
+      <div className="flex flex-col gap-4">
+        {scheduledDates.map(date => {
+          const iso = localISO(date)
+          const dayName = DAY_NAMES[date.getDay()]
+          const dayFmt = `${dayName}, ${date.toLocaleString('default', { month: 'short' })} ${date.getDate()}`
+          return (
+            <div key={iso}>
+              <p className="text-xs font-semibold text-text-sec mb-1.5">📅 {dayFmt}</p>
+              <IntentionField
+                intentionKey={iso}
+                isPast={isPast}
+                getIntention={getIntention}
+                setIntention={setIntention}
+                goal={goal}
+                placeholder={`Plan for ${dayName}… e.g. John from DevOps`}
+              />
+            </div>
+          )
+        })}
+        {scheduledDates.length === 0 && (
+          <p className="text-sm text-text-mut italic text-center py-2">No scheduled days in this week</p>
+        )}
+      </div>
+    )
+  } else if (planType === 'monthly') {
+    const key = monthKey(offset)
+    planContent = (
+      <IntentionField
+        intentionKey={key}
+        isPast={isPast}
+        getIntention={getIntention}
+        setIntention={setIntention}
+        goal={goal}
+        placeholder="What's the plan this month?"
+      />
+    )
+  }
 
   return (
     <AnimatePresence>
       {open && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/50 z-50"
             onClick={onClose}
           />
-
-          {/* Sheet */}
           <motion.div
             initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
             transition={{ type: 'spring', stiffness: 280, damping: 32 }}
@@ -140,64 +255,36 @@ export default function GoalDetailModal({ goal, open, onClose }) {
 
               <div className="border-t border-border my-4" />
 
-              {/* Your Plan */}
-              <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-3">Your plan</p>
-
-              {/* Week navigator */}
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  onClick={() => setWeekOffset(o => Math.max(o - 1, -MAX_PAST))}
-                  disabled={weekOffset <= -MAX_PAST}
-                  className="text-brand-primary font-bold text-lg px-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-brand-primary/8 disabled:opacity-25">
-                  ←
-                </button>
-                <div className="text-center">
-                  <p className="text-sm font-bold text-text-pri">{rangeLabel}</p>
-                  <p className="text-[10px] text-text-sec mt-0.5">{weekLabel(weekOffset)}</p>
-                </div>
-                <button
-                  onClick={() => setWeekOffset(o => Math.min(o + 1, MAX_FUTURE))}
-                  disabled={weekOffset >= MAX_FUTURE}
-                  className="text-brand-primary font-bold text-lg px-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-brand-primary/8 disabled:opacity-25">
-                  →
-                </button>
-              </div>
-
-              {/* Intention field */}
-              {isPast ? (
-                /* Past week — read only */
-                <div className="bg-bg-surface rounded-card px-4 py-3 min-h-[56px]">
-                  {text ? (
-                    <p className="text-sm text-text-sec">📝 {text}</p>
-                  ) : (
-                    <p className="text-sm text-text-mut italic">No plan was set for this week</p>
-                  )}
-                </div>
-              ) : (
-                /* Current / future week — editable */
+              {/* Plan section — only for weekly/monthly goals */}
+              {planType && (
                 <>
-                  <motion.textarea
-                    ref={textareaRef}
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    onBlur={handleBlur}
-                    placeholder="What's the plan this week? e.g. John from DevOps"
-                    animate={{ borderColor: saved ? '#43E97B' : text ? '#6C63FF' : 'rgba(108,99,255,0.3)' }}
-                    transition={{ duration: 0.3 }}
-                    className="w-full min-h-[80px] px-4 py-3 rounded-card border-2 bg-bg-surface text-base text-text-pri placeholder:text-text-mut resize-none focus:outline-none leading-relaxed"
-                    style={{ borderColor: saved ? '#43E97B' : text ? '#6C63FF' : 'rgba(108,99,255,0.3)' }}
-                  />
-                  <p className="text-[10px] text-text-mut mt-1.5 pl-1">
-                    {saved ? '✅ Saved' : '💾 Auto-saves when you leave the field'}
-                  </p>
+                  <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-3">Your plan</p>
+
+                  {/* Navigator */}
+                  <div className="flex items-center justify-between mb-4">
+                    <button
+                      onClick={() => setOffset(o => Math.max(o - 1, -MAX_NAV))}
+                      disabled={offset <= -MAX_NAV}
+                      className="text-brand-primary font-bold text-lg px-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-brand-primary/8 disabled:opacity-25">
+                      ←
+                    </button>
+                    <p className="text-sm font-bold text-text-pri text-center">{periodLabel}</p>
+                    <button
+                      onClick={() => setOffset(o => Math.min(o + 1, MAX_NAV))}
+                      disabled={offset >= MAX_NAV}
+                      className="text-brand-primary font-bold text-lg px-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-brand-primary/8 disabled:opacity-25">
+                      →
+                    </button>
+                  </div>
+
+                  {planContent}
+
+                  <div className="border-t border-border my-4" />
                 </>
               )}
 
-              <div className="border-t border-border my-4" />
-
               {/* Reflections */}
               <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-3">Reflections</p>
-
               {goalJournal.length === 0 ? (
                 <p className="text-sm text-text-mut text-center py-4">
                   Complete this goal and drop a reflection to see it here

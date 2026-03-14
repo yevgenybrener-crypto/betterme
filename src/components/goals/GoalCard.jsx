@@ -4,7 +4,7 @@ import { CATEGORIES } from '../../lib/constants'
 import ReflectModal from './ReflectModal'
 import GoalOptionsMenu from './GoalOptionsMenu'
 import GoalDetailModal from './GoalDetailModal'
-import { useStore, isTodayScheduled, nextScheduledDay, daysLeftInWeek, weekPeriodKey } from '../../store/useStore'
+import { useStore, isTodayScheduled, nextScheduledDay, daysLeftInWeek, weekPeriodKey, getWeekStartDay } from '../../store/useStore'
 import { getSimulatedDate } from '../../lib/simulatedDate'
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -15,9 +15,27 @@ export default function GoalCard({ goal }) {
   const [showOptions, setShowOptions] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
 
-  const intention = goal.frequency === 'weekly'
-    ? getIntention(goal, weekPeriodKey(workdayPreset))
-    : ''
+  // Intention preview — key depends on goal type
+  const intention = (() => {
+    if (goal.frequency === 'weekly' && goal.weeklyMode === 'days') {
+      // Mode B: show today's plan if today is scheduled
+      const today = getSimulatedDate()
+      const y = today.getFullYear()
+      const m = String(today.getMonth() + 1).padStart(2, '0')
+      const d = String(today.getDate()).padStart(2, '0')
+      return getIntention(goal, `${y}-${m}-${d}`)
+    }
+    if (goal.frequency === 'weekly') {
+      // Mode A / legacy: show this week's plan
+      return getIntention(goal, weekPeriodKey(workdayPreset))
+    }
+    if (goal.frequency === 'monthly') {
+      const today = getSimulatedDate()
+      const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+      return getIntention(goal, key)
+    }
+    return ''
+  })()
 
   const complete = isCompleted(goal)
   const category = CATEGORIES.find((c) => c.id === goal.category)
