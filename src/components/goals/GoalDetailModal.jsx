@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore, getWeekStartDay } from '../../store/useStore'
 import { CATEGORIES } from '../../lib/constants'
@@ -64,6 +64,7 @@ function weekRangeLabel(offset, workdayPreset) {
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MAX_NAV = 4
+const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 // ─── Plan type detection ──────────────────────────────────────────────────────
 function getPlanType(goal) {
@@ -72,6 +73,141 @@ function getPlanType(goal) {
   if (goal.frequency === 'weekly' && goal.weeklyMode === 'days') return 'modeB'
   if (goal.frequency === 'weekly') return 'modeA'
   return null // daily — no plan
+}
+
+// ─── Mode A Day Picker ────────────────────────────────────────────────────────
+function ModeADayPicker({ goal, offset, workdayPreset, completions, getWeeklySchedule, setWeeklySchedule }) {
+  const weekDates = getWeekDatesForOffset(offset, workdayPreset)
+  const weekKey = weekPeriodKeyForOffset(offset, workdayPreset)
+  const plannedDays = getWeeklySchedule(goal, weekKey)
+  const target = goal.weeklyTimes ?? 1
+  const today = getSimulatedDate()
+  const todayISO = localISO(today)
+  const isFutureWeek = offset > 0
+  const isPastWeek = offset < 0
+
+  function toggleDay(dayNum) {
+    if (isPastWeek) return
+    const isSelected = plannedDays.includes(dayNum)
+    let newDays
+    if (isSelected) {
+      newDays = plannedDays.filter(d => d !== dayNum)
+    } else {
+      newDays = [...plannedDays, dayNum]
+    }
+    setWeeklySchedule(goal, weekKey, newDays)
+  }
+
+  const completedCount = weekDates.filter(d => {
+    const iso = localISO(d)
+    return !!completions[`${goal.id}_${iso}`]
+  }).length
+
+  return (
+    <div>
+      <p className="text-xs text-text-sec mb-2">
+        {isPastWeek
+          ? `${plannedDays.length} day${plannedDays.length !== 1 ? 's' : ''} planned · ${completedCount} completed`
+          : `Pick up to ${target} day${target > 1 ? 's' : ''} · ${completedCount}/${target} done this week`}
+      </p>
+      <div className="flex gap-1.5 mb-1">
+        {weekDates.map(date => {
+          const dayNum = date.getDay()
+          const iso = localISO(date)
+          const isPlanned = plannedDays.includes(dayNum)
+          const isDone = !!completions[`${goal.id}_${iso}`]
+          const isToday = iso === todayISO
+          const isFutureDay = iso > todayISO
+
+          return (
+            <button key={iso}
+              onClick={() => !isFutureDay && toggleDay(dayNum)}
+              disabled={isFutureDay && !isPlanned}
+              className={`flex-1 flex flex-col items-center py-2 rounded-xl border-2 transition-all gap-1
+                ${isDone
+                  ? 'border-brand-accent bg-brand-accent/10'
+                  : isPlanned
+                    ? 'border-brand-primary bg-brand-primary/8'
+                    : isFutureDay
+                      ? 'border-border/40 bg-bg-surface/50 opacity-40'
+                      : 'border-border bg-bg-surface'}`}>
+              <span className={`text-[9px] font-bold uppercase ${
+                isDone ? 'text-green-600'
+                : isPlanned ? 'text-brand-primary'
+                : isToday ? 'text-brand-primary'
+                : 'text-text-mut'}`}>
+                {SHORT_DAYS[dayNum]}
+              </span>
+              <span className={`text-[13px] font-bold ${
+                isDone ? 'text-green-700'
+                : isPlanned ? 'text-brand-primary'
+                : 'text-text-pri'}`}>
+                {date.getDate()}
+              </span>
+              {isDone
+                ? <span className="text-[10px]">✅</span>
+                : isPlanned
+                  ? <div className="w-1.5 h-1.5 rounded-full bg-brand-primary" />
+                  : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />
+              }
+            </button>
+          )
+        })}
+      </div>
+      {!isPastWeek && (
+        <p className="text-[10px] text-text-mut pl-1">Tap days to plan · tap again to unplan</p>
+      )}
+    </div>
+  )
+}
+
+// ─── Monthly Date Picker ──────────────────────────────────────────────────────
+function MonthlyDatePicker({ goal, offset, completions, getMonthlySchedule, setMonthlySchedule }) {
+  const today = getSimulatedDate()
+  const shifted = new Date(today.getFullYear(), today.getMonth() + offset, 1)
+  const year = shifted.getFullYear()
+  const month = shifted.getMonth()
+  const mKey = `${year}-${String(month + 1).padStart(2, '0')}`
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const plannedDate = getMonthlySchedule(goal, mKey)
+  const isDone = !!completions[`${goal.id}_${mKey}`]
+  const isPast = offset < 0
+
+  const dateNums = Array.from({ length: daysInMonth }, (_, i) => i + 1)
+
+  return (
+    <div>
+      <p className="text-xs text-text-sec mb-3">
+        {isDone ? '✅ Completed this month'
+          : plannedDate ? `📅 Planned for the ${plannedDate}${ordinal(plannedDate)}`
+          : 'Pick a date for this month'}
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {dateNums.map(d => {
+          const isSelected = plannedDate === d
+          const isTodayDate = offset === 0 && today.getDate() === d
+          return (
+            <button key={d}
+              onClick={() => !isPast && setMonthlySchedule(goal, mKey, isSelected ? null : d)}
+              disabled={isPast}
+              className={`w-9 h-9 rounded-xl text-xs font-bold transition-all
+                ${isSelected
+                  ? 'bg-brand-primary text-white'
+                  : isTodayDate
+                    ? 'border-2 border-brand-primary text-brand-primary bg-white'
+                    : 'bg-bg-surface text-text-sec border border-border'}`}>
+              {d}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ordinal(n) {
+  if (n > 3 && n < 21) return 'th'
+  switch (n % 10) { case 1: return 'st'; case 2: return 'nd'; case 3: return 'rd'; default: return 'th' }
 }
 
 // ─── Single intention field ───────────────────────────────────────────────────
@@ -121,7 +257,8 @@ function IntentionField({ intentionKey, isPast, getIntention, setIntention, goal
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function GoalDetailModal({ goal, open, onClose }) {
-  const { workdayPreset, getIntention, setIntention, journalEntries } = useStore()
+  const { workdayPreset, getIntention, setIntention, journalEntries, completions,
+          getWeeklySchedule, setWeeklySchedule, getMonthlySchedule, setMonthlySchedule } = useStore()
   const [offset, setOffset] = useState(0)
   const [showAllJournal, setShowAllJournal] = useState(false)
 
@@ -155,16 +292,24 @@ export default function GoalDetailModal({ goal, open, onClose }) {
   let planContent = null
 
   if (planType === 'modeA') {
-    const key = weekPeriodKeyForOffset(offset, workdayPreset)
+    const weekKey = weekPeriodKeyForOffset(offset, workdayPreset)
     planContent = (
-      <IntentionField
-        intentionKey={key}
-        isPast={isPast}
-        getIntention={getIntention}
-        setIntention={setIntention}
-        goal={goal}
-        placeholder="What's the plan this week?"
-      />
+      <div className="flex flex-col gap-4">
+        <ModeADayPicker
+          goal={goal} offset={offset} workdayPreset={workdayPreset}
+          completions={completions}
+          getWeeklySchedule={getWeeklySchedule}
+          setWeeklySchedule={setWeeklySchedule}
+        />
+        <IntentionField
+          intentionKey={weekKey}
+          isPast={isPast}
+          getIntention={getIntention}
+          setIntention={setIntention}
+          goal={goal}
+          placeholder="Any notes for this week? (optional)"
+        />
+      </div>
     )
   } else if (planType === 'modeB') {
     const weekDates = getWeekDatesForOffset(offset, workdayPreset)
@@ -196,16 +341,23 @@ export default function GoalDetailModal({ goal, open, onClose }) {
       </div>
     )
   } else if (planType === 'monthly') {
-    const key = monthKey(offset)
+    const mKey = monthKey(offset)
     planContent = (
-      <IntentionField
-        intentionKey={key}
-        isPast={isPast}
-        getIntention={getIntention}
-        setIntention={setIntention}
-        goal={goal}
-        placeholder="What's the plan this month?"
-      />
+      <div className="flex flex-col gap-4">
+        <MonthlyDatePicker
+          goal={goal} offset={offset} completions={completions}
+          getMonthlySchedule={getMonthlySchedule}
+          setMonthlySchedule={setMonthlySchedule}
+        />
+        <IntentionField
+          intentionKey={mKey}
+          isPast={isPast}
+          getIntention={getIntention}
+          setIntention={setIntention}
+          goal={goal}
+          placeholder="Any notes for this month? (optional)"
+        />
+      </div>
     )
   }
 

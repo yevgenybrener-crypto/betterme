@@ -29,7 +29,7 @@ function getWeekDates(anchorDate, weekStartDay) {
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 export default function WeekGrid() {
-  const { goals, completions, workdayPreset, toggleDayCompletion, weeklyCount, getIntention } = useStore()
+  const { goals, completions, workdayPreset, toggleDayCompletion, weeklyCount, getIntention, getWeeklySchedule } = useStore()
   const weekStartDay = getWeekStartDay(workdayPreset)
   const today = getSimulatedDate()
   const todayISO = localISO(today)
@@ -85,6 +85,9 @@ export default function WeekGrid() {
 
   const isModeA = (goal) =>
     goal.frequency === 'weekly' && goal.weeklyMode !== 'days'
+
+  // Get planned days for Mode A goal for the displayed week
+  const getModeAPlannedDays = (goal) => getWeeklySchedule(goal, displayedWeekKey)
 
   return (
     <><div className="px-3">
@@ -160,20 +163,57 @@ export default function WeekGrid() {
                   </span>
                 </div>
 
-                {/* Mode A: full-width progress bar */}
-                {modeA ? (
-                  <div className="flex-1 flex items-center gap-2 pr-3">
-                    <div className="flex-1 h-2 bg-bg-surface rounded-pill overflow-hidden">
-                      <div
-                        className="h-full bg-brand-primary rounded-pill transition-all"
-                        style={{ width: `${Math.min(100, ((weeklyCount(goal) || 0) / (goal.weeklyTimes ?? 1)) * 100)}%` }}
-                      />
+                {/* Mode A: per-day cells if planned, else progress bar */}
+                {modeA ? (() => {
+                  const plannedDays = getModeAPlannedDays(goal)
+                  if (plannedDays.length > 0) {
+                    return weekDates.map((date) => {
+                      const iso = localISO(date)
+                      const isPlanned = plannedDays.includes(date.getDay())
+                      const isDone = isPlanned && !!completions[`${goal.id}_${iso}`]
+                      const isToday = iso === todayISO
+                      const isFutureDay = iso > todayISO
+
+                      return (
+                        <div key={iso}
+                          className={`flex-1 flex items-center justify-center min-height-[44px] ${isToday ? 'bg-brand-primary/[0.03]' : ''}`}>
+                          {!isPlanned ? (
+                            <div className="w-[5px] h-[5px] rounded-full bg-border" />
+                          ) : isFutureDay ? (
+                            <div className="w-6 h-6 rounded-full border-2 border-dashed border-brand-primary/40 bg-brand-primary/5" />
+                          ) : isDone ? (
+                            <motion.div
+                              initial={{ scale: 0 }} animate={{ scale: 1 }}
+                              transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                              className="w-6 h-6 rounded-full bg-brand-accent flex items-center justify-center">
+                              <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                                <path d="M2 7l4 4 6-7" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </motion.div>
+                          ) : (
+                            <motion.button whileTap={{ scale: 0.85 }}
+                              onClick={() => toggleDayCompletion(goal, iso)}
+                              className="w-6 h-6 rounded-full border-2 border-dashed border-brand-primary bg-brand-primary/5 flex items-center justify-center" />
+                          )}
+                        </div>
+                      )
+                    })
+                  }
+                  // No planned days: show progress bar
+                  return (
+                    <div className="flex-1 flex items-center gap-2 pr-3">
+                      <div className="flex-1 h-2 bg-bg-surface rounded-pill overflow-hidden">
+                        <div
+                          className="h-full bg-brand-primary rounded-pill transition-all"
+                          style={{ width: `${Math.min(100, ((weeklyCount(goal) || 0) / (goal.weeklyTimes ?? 1)) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[11px] font-bold text-brand-primary whitespace-nowrap">
+                        {weeklyCount(goal) || 0}/{goal.weeklyTimes ?? 1}
+                      </span>
                     </div>
-                    <span className="text-[11px] font-bold text-brand-primary whitespace-nowrap">
-                      {weeklyCount(goal) || 0}/{goal.weeklyTimes ?? 1}
-                    </span>
-                  </div>
-                ) : (
+                  )
+                })() : (
                   /* Per-day cells */
                   weekDates.map((date) => {
                     const iso = localISO(date)

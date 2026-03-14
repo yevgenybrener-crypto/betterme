@@ -183,6 +183,32 @@ export const useStore = create(
         }
       },
 
+      // Per-week day schedules for Mode A goals (e.g. plan Mon+Wed for "2x/week")
+      // Key: goalId_weekKey → array of day numbers [0-6]
+      weeklySchedules: {},
+      getWeeklySchedule: (goal, weekKey) => {
+        if (!goal) return []
+        return (get().weeklySchedules || {})[`${goal.id}_${weekKey}`] || []
+      },
+      setWeeklySchedule: (goal, weekKey, days) => {
+        if (!goal) return
+        const key = `${goal.id}_${weekKey}`
+        set((s) => ({ weeklySchedules: { ...(s.weeklySchedules || {}), [key]: days } }))
+      },
+
+      // Per-month date schedules for monthly goals
+      // Key: goalId_YYYY-MM → day-of-month number (1-31) or null
+      monthlySchedules: {},
+      getMonthlySchedule: (goal, monthKey) => {
+        if (!goal) return null
+        return (get().monthlySchedules || {})[`${goal.id}_${monthKey}`] ?? null
+      },
+      setMonthlySchedule: (goal, monthKey, dateNum) => {
+        if (!goal) return
+        const key = `${goal.id}_${monthKey}`
+        set((s) => ({ monthlySchedules: { ...(s.monthlySchedules || {}), [key]: dateNum } }))
+      },
+
       // Weekly intentions — per-goal per-week planning text
       weeklyIntentions: {},
       setIntention: (goal, weekKey, text) => {
@@ -201,12 +227,43 @@ export const useStore = create(
       // Toggle a specific day's completion (used by WeekGrid retroactive taps)
       // Does NOT update streak — streak is only updated from GoalCard live completions
       toggleDayCompletion: (goal, dateISO) => {
+        // Mode A with planned days: also sync the week count
+        if (goal.frequency === 'weekly' && goal.weeklyMode !== 'days') {
+          const { workdayPreset } = get()
+          const weekStartDay = getWeekStartDay(workdayPreset)
+          // Compute week period key for this specific date
+          const parts = dateISO.split('-').map(Number)
+          const date = new Date(parts[0], parts[1] - 1, parts[2])
+          const dow = (date.getDay() - weekStartDay + 7) % 7
+          const ws = new Date(date)
+          ws.setDate(date.getDate() - dow)
+          const wKey = `${goal.id}_${ws.getFullYear()}-${String(ws.getMonth()+1).padStart(2,'0')}-${String(ws.getDate()).padStart(2,'0')}-W${weekStartDay}`
+          const dayKey = `${goal.id}_${dateISO}`
+          const lockKey = `${goal.id}_modeA_${dateISO}`
+          set((s) => {
+            const isDone = !!s.completions[dayKey]
+            const lockedByCard = !!s.completions[lockKey]
+            const currentCount = s.completions[wKey] || 0
+            const target = goal.weeklyTimes ?? 1
+            if (isDone) {
+              // Undo: clear day, clear lock, decrement count
+              const next = { ...s.completions, [dayKey]: false }
+              delete next[lockKey]
+              next[wKey] = Math.max(currentCount - 1, 0)
+              return { completions: next }
+            } else {
+              // Complete: set day + lock; only increment if not already locked (prevents double-count with GoalCard)
+              const next = { ...s.completions, [dayKey]: true, [lockKey]: true }
+              if (!lockedByCard) next[wKey] = Math.min(currentCount + 1, target)
+              return { completions: next }
+            }
+          })
+          return
+        }
+        // Mode B / daily: toggle boolean
         const key = `${goal.id}_${dateISO}`
         set((s) => ({
-          completions: {
-            ...s.completions,
-            [key]: !s.completions[key],
-          },
+          completions: { ...s.completions, [key]: !s.completions[key] },
         }))
       },
 
