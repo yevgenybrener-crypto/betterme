@@ -105,10 +105,13 @@ function ModeADayPicker({ goal, offset, workdayPreset, completions, getWeeklySch
 
   return (
     <div>
-      <p className="text-xs text-text-sec mb-2">
+      <p className="text-sm font-semibold text-text-pri mb-1">
+        {isPastWeek ? 'Planned days' : `Which days do you plan to do it this week?`}
+      </p>
+      <p className="text-xs text-text-sec mb-3">
         {isPastWeek
           ? `${plannedDays.length} day${plannedDays.length !== 1 ? 's' : ''} planned · ${completedCount} completed`
-          : `Pick up to ${target} day${target > 1 ? 's' : ''} · ${completedCount}/${target} done this week`}
+          : `Tap the days you think you'll complete it · ${completedCount}/${target} done so far`}
       </p>
       <div className="flex gap-1.5 mb-1">
         {weekDates.map(date => {
@@ -151,7 +154,7 @@ function ModeADayPicker({ goal, offset, workdayPreset, completions, getWeeklySch
         })}
       </div>
       {!isPastWeek && (
-        <p className="text-[10px] text-text-mut pl-1">Tap days to plan · tap again to unplan</p>
+        <p className="text-[10px] text-text-mut pl-1 mt-1.5">Tap a day to plan it · tap again to remove</p>
       )}
     </div>
   )
@@ -406,7 +409,9 @@ export default function GoalDetailModal({ goal, open, onClose }) {
               {/* Plan section — only for weekly/monthly goals */}
               {planType && (
                 <>
-                  <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-3">Your plan</p>
+                  <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-3">
+                    {planType === 'modeA' ? 'Plan your week' : planType === 'monthly' ? 'Plan this month' : 'Your plan'}
+                  </p>
 
                   {/* Navigator */}
                   <div className="flex items-center justify-between mb-4">
