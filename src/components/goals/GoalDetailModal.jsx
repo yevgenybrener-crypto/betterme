@@ -163,7 +163,7 @@ export default function GoalDetailModal({ goal, open, onClose }) {
         getIntention={getIntention}
         setIntention={setIntention}
         goal={goal}
-        placeholder="What's the plan this week? e.g. John from DevOps"
+        placeholder="What's the plan this week?"
       />
     )
   } else if (planType === 'modeB') {
@@ -185,7 +185,7 @@ export default function GoalDetailModal({ goal, open, onClose }) {
                 getIntention={getIntention}
                 setIntention={setIntention}
                 goal={goal}
-                placeholder={`Plan for ${dayName}… e.g. John from DevOps`}
+                placeholder={`What's your plan for ${dayName}?`}
               />
             </div>
           )
