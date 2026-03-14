@@ -13,7 +13,7 @@ export default function Home() {
   const [view, setView] = useState('daily') // 'daily' | 'weekly'
 
   const activeGoals = goals.filter((g) => !g.archived)
-  const todayGoals = activeGoals.filter((g) => isActiveToday(g))
+  const todayGoals = activeGoals.filter((g) => isActiveToday(g, workdayPreset))
   const weeklyGoals = activeGoals.filter((g) => g.frequency === 'weekly')
   const monthlyGoals = activeGoals.filter((g) => g.frequency === 'monthly')
 
@@ -105,7 +105,7 @@ export default function Home() {
   )
 }
 
-function isActiveToday(goal) {
+function isActiveToday(goal, workdayPreset) {
   const day = getSimulatedDate().getDay()
   if (goal.frequency === 'daily') {
     if (goal.weekdaysOnly && !isWorkday(day, workdayPreset)) return false
