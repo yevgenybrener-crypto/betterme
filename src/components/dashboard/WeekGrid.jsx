@@ -181,11 +181,14 @@ export default function WeekGrid() {
                     const done = active && isCellCompleted(goal, iso)
                     const isToday = iso === todayISO
 
+                    const isFutureDay = iso > todayISO
                     return (
                       <div key={iso}
                         className={`flex-1 flex items-center justify-center min-h-[44px] ${isToday ? 'bg-brand-primary/[0.03]' : ''}`}>
                         {!active ? (
                           <div className="w-[5px] h-[5px] rounded-full bg-border" />
+                        ) : isFutureDay ? (
+                          <div className="w-6 h-6 rounded-full border-2 border-border/40 bg-bg-surface/50" />
                         ) : (
                           <motion.button
                             whileTap={{ scale: 0.85 }}
