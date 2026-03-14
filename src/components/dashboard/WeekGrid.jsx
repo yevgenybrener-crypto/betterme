@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { useStore, getWeekStartDay } from '../../store/useStore'
+import { useStore, getWeekStartDay, isWorkday } from '../../store/useStore'
 import { CATEGORIES } from '../../lib/constants'
 import { getSimulatedDate } from '../../lib/simulatedDate'
 import GoalDetailModal from '../goals/GoalDetailModal'
@@ -70,8 +70,8 @@ export default function WeekGrid() {
   function isCellActive(goal, date) {
     const dayNum = date.getDay()
     if (goal.frequency === 'daily') {
-      if (goal.weekdaysOnly && (dayNum === 0 || dayNum === 6)) return false
-      if (goal.weekendsOnly && !(dayNum === 0 || dayNum === 6)) return false
+      if (goal.weekdaysOnly && !isWorkday(dayNum, workdayPreset)) return false
+      if (goal.weekendsOnly && isWorkday(dayNum, workdayPreset)) return false
       return true
     }
     if (goal.frequency === 'weekly') {

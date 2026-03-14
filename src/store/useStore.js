@@ -11,6 +11,15 @@ export const todayKey = () => {
   return `${y}-${m}-${day}`
 }
 
+// Returns true if dayNum (0=Sun…6=Sat) is a workday for the given preset.
+// sun-thu → workdays 0-4 (Sun–Thu), weekends = Fri(5)+Sat(6)
+// mon-fri → workdays 1-5 (Mon–Fri), weekends = Sat(6)+Sun(0)
+export const isWorkday = (dayNum, workdayPreset) => {
+  const weekStartDay = workdayPreset === 'sun-thu' ? 0 : 1
+  const d = (dayNum - weekStartDay + 7) % 7
+  return d < 5 // 0-4 = workday, 5-6 = weekend
+}
+
 // Returns the week start day (0=Sun, 1=Mon) based on workday preset.
 export const getWeekStartDay = (workdayPreset) => {
   if (workdayPreset === 'sun-thu') return 0

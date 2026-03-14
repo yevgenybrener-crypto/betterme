@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useStore, getWeekStartDay } from '../../store/useStore'
+import { useStore, getWeekStartDay, isWorkday } from '../../store/useStore'
 import { CATEGORIES } from '../../lib/constants'
 import { getSimulatedDate } from '../../lib/simulatedDate'
 
@@ -61,8 +61,8 @@ function buildWeeklyScores(goals, completions, workdayPreset, numWeeks = 8) {
           dayDate.setDate(ws.getDate() + d)
           if (dayDate > today) break
           const dayNum = dayDate.getDay()
-          if (goal.weekdaysOnly && (dayNum === 0 || dayNum === 6)) continue
-          if (goal.weekendsOnly && !(dayNum === 0 || dayNum === 6)) continue
+          if (goal.weekdaysOnly && !isWorkday(dayNum, workdayPreset)) continue
+          if (goal.weekendsOnly && isWorkday(dayNum, workdayPreset)) continue
           possible++
           const key = `${goal.id}_${localISO(dayDate)}`
           if (completions[key]) completed++
@@ -115,8 +115,8 @@ function buildCategoryScores(goals, completions, workdayPreset) {
         for (let d = 1; d <= daysSoFar; d++) {
           const date = new Date(year, month, d)
           const dayNum = date.getDay()
-          if (goal.weekdaysOnly && (dayNum === 0 || dayNum === 6)) continue
-          if (goal.weekendsOnly && !(dayNum === 0 || dayNum === 6)) continue
+          if (goal.weekdaysOnly && !isWorkday(dayNum, workdayPreset)) continue
+          if (goal.weekendsOnly && isWorkday(dayNum, workdayPreset)) continue
           possible++
           const key = `${goal.id}_${localISO(date)}`
           if (completions[key]) completed++
