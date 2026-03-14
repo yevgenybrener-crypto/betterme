@@ -13,9 +13,26 @@ export default function Home() {
   const [view, setView] = useState('daily') // 'daily' | 'weekly'
 
   const activeGoals = goals.filter((g) => !g.archived)
-  const todayGoals = activeGoals.filter((g) => isActiveToday(g, workdayPreset))
-  const weeklyGoals = activeGoals.filter((g) => g.frequency === 'weekly')
-  const monthlyGoals = activeGoals.filter((g) => g.frequency === 'monthly')
+
+  // Group 1: specifically scheduled for today
+  // - daily goals active today
+  // - Mode B weekly goals where today is a scheduled day
+  const scheduledToday = activeGoals.filter((g) => {
+    if (!isActiveToday(g, workdayPreset)) return false
+    if (g.frequency === 'daily') return true
+    if (g.frequency === 'weekly' && g.weeklyMode === 'days') return true
+    return false
+  })
+
+  // Group 2: flexible — can be done any day this period
+  // - Mode A weekly (X times per week)
+  // - legacy weekly (no weeklyMode)
+  // - monthly goals
+  const flexibleGoals = activeGoals.filter((g) => {
+    if (g.frequency === 'weekly' && g.weeklyMode !== 'days') return true
+    if (g.frequency === 'monthly') return true
+    return false
+  })
 
   const lifeStreak = useMemo(() => {
     if (!activeGoals.length) return 0
@@ -24,8 +41,9 @@ export default function Home() {
 
   const name = user?.user_metadata?.full_name?.split(' ')[0] || 'there'
   const greeting = getGreeting()
-  const completedToday = todayGoals.filter((g) => completions[g.id]).length
-  const ringGoals = [...weeklyGoals, ...monthlyGoals]
+  const allTodayGoals = [...scheduledToday, ...flexibleGoals]
+  const completedToday = allTodayGoals.filter((g) => completions[`${g.id}_${todayKey()}`] || isCompletedThisPeriod(g, completions, workdayPreset)).length
+  const ringGoals = activeGoals.filter((g) => g.frequency === 'weekly' || g.frequency === 'monthly')
 
   return (
     <div className="min-h-screen bg-bg-base pb-20">
@@ -61,17 +79,33 @@ export default function Home() {
 
             {/* Today's Stack */}
             <div className="px-5">
-              <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-text-mut mb-3">
-                Today's Stack {completedToday > 0 && `· ${completedToday}/${todayGoals.length} done`}
-              </p>
-              {todayGoals.length === 0 ? (
+              {/* Empty state */}
+              {allTodayGoals.length === 0 && (
                 <div className="flex flex-col items-center py-16 gap-4">
                   <span className="text-5xl">🎯</span>
                   <p className="text-text-sec text-center text-sm">Your life balance starts here</p>
                   <p className="text-text-mut text-center text-xs">Tap + to add your first goal</p>
                 </div>
-              ) : (
-                todayGoals.map((g) => <GoalCard key={g.id} goal={g} />)
+              )}
+
+              {/* Scheduled for today */}
+              {scheduledToday.length > 0 && (
+                <>
+                  <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-text-mut mb-3">
+                    Today's Tasks
+                  </p>
+                  {scheduledToday.map((g) => <GoalCard key={g.id} goal={g} />)}
+                </>
+              )}
+
+              {/* Flexible — any day this period */}
+              {flexibleGoals.length > 0 && (
+                <>
+                  <p className={`text-[10px] font-semibold tracking-[0.1em] uppercase text-text-mut mb-3 ${scheduledToday.length > 0 ? 'mt-5' : ''}`}>
+                    This Week / Month
+                  </p>
+                  {flexibleGoals.map((g) => <GoalCard key={g.id} goal={g} />)}
+                </>
               )}
             </div>
 
@@ -102,6 +136,22 @@ export default function Home() {
       </AnimatePresence>
     </div>
   )
+}
+
+function isCompletedThisPeriod(goal, completions, workdayPreset) {
+  if (goal.frequency === 'weekly') {
+    if (goal.weeklyMode !== 'days') {
+      const key = `${goal.id}_${weekPeriodKey(workdayPreset)}`
+      const target = goal.weeklyTimes ?? 1
+      return (completions[key] || 0) >= target
+    }
+  }
+  if (goal.frequency === 'monthly') {
+    const n = getSimulatedDate()
+    const key = `${goal.id}_${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`
+    return !!completions[key]
+  }
+  return false
 }
 
 function isActiveToday(goal, workdayPreset) {
