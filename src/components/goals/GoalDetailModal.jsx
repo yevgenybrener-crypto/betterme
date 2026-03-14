@@ -117,25 +117,21 @@ function ModeADayPicker({ goal, offset, workdayPreset, completions, getWeeklySch
           const isPlanned = plannedDays.includes(dayNum)
           const isDone = !!completions[`${goal.id}_${iso}`]
           const isToday = iso === todayISO
-          const isFutureDay = iso > todayISO
 
           return (
             <button key={iso}
-              onClick={() => !isFutureDay && toggleDay(dayNum)}
-              disabled={isFutureDay && !isPlanned}
+              onClick={() => toggleDay(dayNum)}
               className={`flex-1 flex flex-col items-center py-2 rounded-xl border-2 transition-all gap-1
                 ${isDone
                   ? 'border-brand-accent bg-brand-accent/10'
                   : isPlanned
                     ? 'border-brand-primary bg-brand-primary/8'
-                    : isFutureDay
-                      ? 'border-border/40 bg-bg-surface/50 opacity-40'
-                      : 'border-border bg-bg-surface'}`}>
+                    : 'border-border bg-bg-surface'}`}>
               <span className={`text-[9px] font-bold uppercase ${
                 isDone ? 'text-green-600'
                 : isPlanned ? 'text-brand-primary'
                 : isToday ? 'text-brand-primary'
-                : 'text-text-mut'}`}>
+                : 'text-text-sec'}`}>
                 {SHORT_DAYS[dayNum]}
               </span>
               <span className={`text-[13px] font-bold ${
