@@ -6,7 +6,7 @@ import ProgressRing from '../components/dashboard/ProgressRing'
 import WeekGrid from '../components/dashboard/WeekGrid'
 import { CATEGORIES } from '../lib/constants'
 import { getSimulatedDate } from '../lib/simulatedDate'
-import { todayKey, weekPeriodKey, getWeekStartDay, isWorkday } from '../store/useStore'
+import { todayKey, weekPeriodKey, getWeekStartDay, isWorkday, isTodayScheduled } from '../store/useStore'
 
 export default function Home() {
   const { goals, completions, user, workdayPreset } = useStore()
@@ -16,11 +16,12 @@ export default function Home() {
 
   // Group 1: specifically scheduled for today
   // - daily goals active today
-  // - Mode B weekly goals where today is a scheduled day
+  // - Mode B weekly goals where today IS one of the scheduled days
   const scheduledToday = activeGoals.filter((g) => {
-    if (!isActiveToday(g, workdayPreset)) return false
-    if (g.frequency === 'daily') return true
-    if (g.frequency === 'weekly' && g.weeklyMode === 'days') return true
+    if (g.frequency === 'daily') return isActiveToday(g, workdayPreset)
+    if (g.frequency === 'weekly' && g.weeklyMode === 'days') {
+      return isTodayScheduled(g.weeklyDays || [])
+    }
     return false
   })
 
