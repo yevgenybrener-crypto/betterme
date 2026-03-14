@@ -9,7 +9,7 @@ import { getSimulatedDate } from '../lib/simulatedDate'
 import { todayKey, weekPeriodKey, getWeekStartDay, isWorkday } from '../store/useStore'
 
 export default function Home() {
-  const { goals, completions, user } = useStore()
+  const { goals, completions, user, workdayPreset } = useStore()
   const [view, setView] = useState('daily') // 'daily' | 'weekly'
 
   const activeGoals = goals.filter((g) => !g.archived)
@@ -26,7 +26,6 @@ export default function Home() {
   const greeting = getGreeting()
   const completedToday = todayGoals.filter((g) => completions[g.id]).length
   const ringGoals = [...weeklyGoals, ...monthlyGoals]
-  const { workdayPreset } = useStore()
 
   return (
     <div className="min-h-screen bg-bg-base pb-20">
