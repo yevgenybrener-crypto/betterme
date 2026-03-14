@@ -10,7 +10,7 @@ import { getSimulatedDate } from '../../lib/simulatedDate'
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 export default function GoalCard({ goal }) {
-  const { isCompleted, setCompletion, updateGoal, showToast, workdayPreset, weeklyCount, getIntention } = useStore()
+  const { isCompleted, setCompletion, updateGoal, showToast, workdayPreset, weeklyCount, getIntention, isModeACompletedToday } = useStore()
   const [showReflect, setShowReflect] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
@@ -41,8 +41,11 @@ export default function GoalCard({ goal }) {
   // Urgency
   const urgency = getUrgency({ goal, complete, isModeA, isLegacyWeekly, isModeB, todayScheduled, remaining, daysLeft, workdayPreset })
 
+  // Mode A: already tapped today?
+  const modeADoneToday = (isModeA || isLegacyWeekly) ? isModeACompletedToday(goal) : false
+
   // Can the user tap complete?
-  const canComplete = !complete && (isModeB ? todayScheduled : true)
+  const canComplete = !complete && (isModeB ? todayScheduled : true) && !modeADoneToday
 
   function handleComplete() {
     if (!canComplete) return
@@ -142,6 +145,13 @@ export default function GoalCard({ goal }) {
               className="w-7 h-7 rounded-full bg-brand-accent flex items-center justify-center">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M2 7l4 4 6-7" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </motion.div>
+          ) : modeADoneToday ? (
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
+              className="w-7 h-7 rounded-full bg-brand-primary/20 flex items-center justify-center">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 7l4 4 6-7" stroke="#6C63FF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </motion.div>
           ) : (

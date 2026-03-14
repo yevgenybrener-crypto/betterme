@@ -115,6 +115,13 @@ export const useStore = create(
         return !!get().completions[key]
       },
 
+      // Mode A: has the user already completed this goal today?
+      isModeACompletedToday: (goal) => {
+        if (goal.frequency !== 'weekly' || goal.weeklyMode === 'days') return false
+        const dayKey = `${goal.id}_modeA_${todayKey()}`
+        return !!get().completions[dayKey]
+      },
+
       // Mode A (times): how many completions this week?
       weeklyCount: (goal) => {
         if (goal.frequency !== 'weekly') return 0
