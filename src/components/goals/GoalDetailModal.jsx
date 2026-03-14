@@ -89,14 +89,14 @@ function ModeADayPicker({ goal, offset, workdayPreset, completions, getWeeklySch
   function toggleDay(dayNum) {
     if (isPastWeek) return
     const isSelected = plannedDays.includes(dayNum)
-    let newDays
-    if (isSelected) {
-      newDays = plannedDays.filter(d => d !== dayNum)
-    } else {
-      newDays = [...plannedDays, dayNum]
-    }
+    if (!isSelected && plannedDays.length >= target) return // cap at target
+    const newDays = isSelected
+      ? plannedDays.filter(d => d !== dayNum)
+      : [...plannedDays, dayNum]
     setWeeklySchedule(goal, weekKey, newDays)
   }
+
+  const atCapacity = plannedDays.length >= target
 
   const completedCount = weekDates.filter(d => {
     const iso = localISO(d)
@@ -111,7 +111,9 @@ function ModeADayPicker({ goal, offset, workdayPreset, completions, getWeeklySch
       <p className="text-xs text-text-sec mb-3">
         {isPastWeek
           ? `${plannedDays.length} day${plannedDays.length !== 1 ? 's' : ''} planned · ${completedCount} completed`
-          : `Tap the days you think you'll complete it · ${completedCount}/${target} done so far`}
+          : atCapacity
+            ? `✅ ${plannedDays.length}/${target} days planned — you're all set for this week!`
+            : `Tap the days you think you'll complete it · ${plannedDays.length}/${target} picked`}
       </p>
       <div className="flex gap-1.5 mb-1">
         {weekDates.map(date => {
@@ -129,7 +131,9 @@ function ModeADayPicker({ goal, offset, workdayPreset, completions, getWeeklySch
                   ? 'border-brand-accent bg-brand-accent/10'
                   : isPlanned
                     ? 'border-brand-primary bg-brand-primary/8'
-                    : 'border-border bg-bg-surface'}`}>
+                    : atCapacity && !isPastWeek
+                      ? 'border-border/40 bg-bg-surface opacity-40'
+                      : 'border-border bg-bg-surface'}`}>
               <span className={`text-[9px] font-bold uppercase ${
                 isDone ? 'text-green-600'
                 : isPlanned ? 'text-brand-primary'
