@@ -150,12 +150,24 @@ export const useStore = create(
             set((s) => ({ completions: { ...s.completions, [key]: value } }))
           } else {
             // Mode A: increment count (or reset on value=false)
-            const key = `${goal.id}_${weekPeriodKey(workdayPreset)}`
+            // Guard: only one completion per day — use goalId_todayKey as a daily lock
+            const weekKey = `${goal.id}_${weekPeriodKey(workdayPreset)}`
+            const dayKey = `${goal.id}_modeA_${todayKey()}`
             set((s) => {
-              const current = s.completions[key] || 0
+              const current = s.completions[weekKey] || 0
               const target = goal.weeklyTimes ?? 1
-              const newVal = value ? Math.min(current + 1, target) : 0
-              return { completions: { ...s.completions, [key]: newVal } }
+              if (value) {
+                // Block same-day double-tap
+                if (s.completions[dayKey]) return s
+                const newCount = Math.min(current + 1, target)
+                return { completions: { ...s.completions, [weekKey]: newCount, [dayKey]: true } }
+              } else {
+                // Undo: decrement and clear today's lock
+                const newCount = Math.max(current - 1, 0)
+                const next = { ...s.completions, [weekKey]: newCount }
+                delete next[dayKey]
+                return { completions: next }
+              }
             })
           }
         } else {
