@@ -46,7 +46,7 @@ export default function Home() {
   const name = user?.user_metadata?.full_name?.split(' ')[0] || 'there'
   const greeting = getGreeting()
   const allTodayGoals = [...scheduledToday, ...flexibleGoals]
-  const completedToday = allTodayGoals.filter((g) => completions[`${g.id}_${todayKey()}`] || isCompletedThisPeriod(g, completions, workdayPreset)).length
+  const completedToday = allTodayGoals.filter((g) => completions[`${g.id}_${todayKey()}`] || isCompletedThisPeriod(g, completions)).length
   const ringGoals = activeGoals.filter((g) => g.frequency === 'weekly' || g.frequency === 'monthly')
 
   return (
@@ -142,14 +142,7 @@ export default function Home() {
   )
 }
 
-function isCompletedThisPeriod(goal, completions, workdayPreset) {
-  if (goal.frequency === 'weekly') {
-    if (goal.weeklyMode !== 'days') {
-      const key = `${goal.id}_${weekPeriodKey(workdayPreset)}`
-      const target = goal.weeklyTimes ?? 1
-      return (completions[key] || 0) >= target
-    }
-  }
+function isCompletedThisPeriod(goal, completions) {
   if (goal.frequency === 'monthly') {
     const n = getSimulatedDate()
     const key = `${goal.id}_${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`
@@ -192,30 +185,22 @@ function getRingProgress(goal, completions, workdayPreset) {
   }
 
   if (goal.frequency === 'weekly') {
-    // Mode A (times) or legacy
-    if (goal.weeklyMode !== 'days') {
-      const key = `${goal.id}_${weekPeriodKey(workdayPreset)}`
-      const count = completions[key] || 0
-      const target = goal.weeklyTimes ?? 1
-      return { value: count, max: target }
-    }
-    // Mode B (specific days) — count how many scheduled days this week are completed
+    // Count per-day completions this week vs scheduled days
     const weekStart = getWeekStartDay(workdayPreset)
     const today = getSimulatedDate()
     const dayOfWeek = (today.getDay() - weekStart + 7) % 7
-    const monday = new Date(today)
-    monday.setDate(today.getDate() - dayOfWeek)
+    const ws = new Date(today)
+    ws.setDate(today.getDate() - dayOfWeek)
     const scheduledDays = goal.weeklyDays || []
     let completed = 0
     for (let i = 0; i < 7; i++) {
-      const d = new Date(monday)
-      d.setDate(monday.getDate() + i)
-      if (scheduledDays.includes(d.getDay())) {
-        const key = `${goal.id}_${localISO(d)}`
-        if (completions[key]) completed++
-      }
+      const d = new Date(ws)
+      d.setDate(ws.getDate() + i)
+      const key = `${goal.id}_${localISO(d)}`
+      if (completions[key]) completed++
     }
-    return { value: completed, max: scheduledDays.length }
+    const max = scheduledDays.length || 1
+    return { value: completed, max }
   }
 
   return { value: 0, max: 1 }
