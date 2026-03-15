@@ -175,10 +175,10 @@ export default function WeekGrid() {
                         <span className="text-[11px] font-semibold text-text-pri leading-snug line-clamp-2">
                           {goal.name}
                         </span>
-                        {/* Mode A: show week count badge */}
-                        {goal.frequency === 'weekly' && goal.weeklyMode !== 'days' && (
+                        {/* Weekly: show X done this week as small counter */}
+                        {goal.frequency === 'weekly' && weeklyCount(goal) > 0 && (
                           <span className="text-[9px] font-bold text-brand-primary">
-                            {weeklyCount(goal) || 0}/{goal.weeklyTimes ?? 1}×
+                            {weeklyCount(goal)}× done
                           </span>
                         )}
                       </div>
@@ -230,14 +230,14 @@ export default function WeekGrid() {
           <div className="flex flex-col gap-3">
             {flexGroups.map(({ cat, goals: catGoals }) =>
               catGoals.map(goal => {
-                const isModeA = goal.frequency === 'weekly'
+                const isWeekly = goal.frequency === 'weekly'
                 const isMonthly = goal.frequency === 'monthly'
-                const count = isModeA ? (weeklyCount(goal) || 0) : 0
-                const target = isModeA ? (goal.weeklyTimes ?? 1) : 1
-                const pct = isModeA ? Math.min(100, (count / target) * 100) : 0
+                const count = isWeekly ? (weeklyCount(goal) || 0) : 0
+                const scheduledDaysCount = getEffectiveDays(goal, displayedWeekKey).length
+                const pct = isWeekly && scheduledDaysCount > 0 ? Math.min(100, (count / scheduledDaysCount) * 100) : 0
 
-                // Planned days for Mode A
-                const plannedDays = isModeA ? getWeeklySchedule(goal, displayedWeekKey) : []
+                // Planned days for this week
+                const plannedDays = isWeekly ? getEffectiveDays(goal, displayedWeekKey) : []
                 // Planned date for monthly
                 const plannedDate = isMonthly ? getMonthlySchedule(goal, displayedMonthKey) : null
                 const monthDone = isMonthly && !!completions[`${goal.id}_${displayedMonthKey}`]
@@ -264,7 +264,7 @@ export default function WeekGrid() {
                           <div className="flex-1 h-1.5 bg-bg-surface rounded-pill overflow-hidden max-w-[100px]">
                             <div className="h-full bg-brand-primary rounded-pill transition-all" style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="text-[10px] font-bold text-brand-primary">{count}/{target} this week</span>
+                          <span className="text-[10px] font-bold text-brand-primary">{count} done this week</span>
                         </div>
                       )}
 
