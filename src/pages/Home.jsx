@@ -185,21 +185,19 @@ function getRingProgress(goal, completions, workdayPreset) {
   }
 
   if (goal.frequency === 'weekly') {
-    // Count per-day completions this week vs scheduled days
+    // Count per-day completions this week
     const weekStart = getWeekStartDay(workdayPreset)
     const today = getSimulatedDate()
     const dayOfWeek = (today.getDay() - weekStart + 7) % 7
     const ws = new Date(today)
     ws.setDate(today.getDate() - dayOfWeek)
-    const scheduledDays = goal.weeklyDays || []
     let completed = 0
     for (let i = 0; i < 7; i++) {
       const d = new Date(ws)
       d.setDate(ws.getDate() + i)
-      const key = `${goal.id}_${localISO(d)}`
-      if (completions[key]) completed++
+      if (completions[`${goal.id}_${localISO(d)}`]) completed++
     }
-    const max = scheduledDays.length || 1
+    const max = goal.weeklyTarget ?? (goal.weeklyDays?.length || 1)
     return { value: completed, max }
   }
 

@@ -233,8 +233,8 @@ export default function WeekGrid() {
                 const isWeekly = goal.frequency === 'weekly'
                 const isMonthly = goal.frequency === 'monthly'
                 const count = isWeekly ? (weeklyCount(goal) || 0) : 0
-                const scheduledDaysCount = getEffectiveDays(goal, displayedWeekKey).length
-                const pct = isWeekly && scheduledDaysCount > 0 ? Math.min(100, (count / scheduledDaysCount) * 100) : 0
+                const wTarget = isWeekly ? (goal.weeklyTarget ?? goal.weeklyDays?.length ?? 1) : 1
+                const pct = isWeekly ? Math.min(100, (count / wTarget) * 100) : 0
 
                 // Planned days for this week
                 const plannedDays = isWeekly ? getEffectiveDays(goal, displayedWeekKey) : []
@@ -264,7 +264,7 @@ export default function WeekGrid() {
                           <div className="flex-1 h-1.5 bg-bg-surface rounded-pill overflow-hidden max-w-[100px]">
                             <div className="h-full bg-brand-primary rounded-pill transition-all" style={{ width: `${pct}%` }} />
                           </div>
-                          <span className="text-[10px] font-bold text-brand-primary">{count} done this week</span>
+                          <span className={`text-[10px] font-bold ${count >= wTarget ? 'text-green-600' : 'text-brand-primary'}`}>{count}/{wTarget}× this week</span>
                         </div>
                       )}
 

@@ -22,7 +22,8 @@ function orderedDays(workdayPreset) {
 
 const defaultForm = {
   frequency: '',
-  weeklyDays: [],   // default scheduled days (optional — empty = flexible)
+  weeklyDays: [],      // default scheduled days (optional — empty = flexible)
+  weeklyTarget: 1,     // target times per week
   category: '',
   name: '',
   target: '',
@@ -55,7 +56,8 @@ export default function HorizonWizard() {
       createdAt: new Date().toISOString(),
     }
     if (form.frequency === 'weekly') {
-      goal.weeklyDays = form.weeklyDays   // may be empty (flexible)
+      goal.weeklyDays = form.weeklyDays       // may be empty (flexible)
+      goal.weeklyTarget = form.weeklyTarget   // desired instances per week
     }
     addGoal(goal)
     close()
@@ -164,24 +166,53 @@ export default function HorizonWizard() {
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         className="overflow-hidden mb-5">
-                        <div className="bg-bg-card rounded-card p-4 border border-border">
-                          <p className="text-xs font-semibold text-text-pri mb-1">Which days will you do this?</p>
-                          <p className="text-[11px] text-text-sec mb-3">Optional — you can always set or change days later</p>
-                          <div className="flex flex-wrap gap-2">
-                            {days.map((d) => (
-                              <button key={d.value}
-                                onClick={() => toggleDay(d.value)}
-                                className={`px-3 py-2 rounded-pill text-xs font-semibold border transition-all
-                                  ${form.weeklyDays.includes(d.value) ? 'bg-brand-primary text-white border-brand-primary' : 'bg-bg-surface border-border text-text-sec'}`}>
-                                {d.label}
+                        <div className="bg-bg-card rounded-card p-4 border border-border flex flex-col gap-4">
+
+                          {/* Target count */}
+                          <div>
+                            <p className="text-xs font-semibold text-text-pri mb-3">How many times per week?</p>
+                            <div className="flex items-center justify-center gap-6">
+                              <button
+                                onClick={() => setForm({ ...form, weeklyTarget: Math.max(1, form.weeklyTarget - 1) })}
+                                disabled={form.weeklyTarget <= 1}
+                                className="w-10 h-10 rounded-full border border-border bg-bg-surface flex items-center justify-center text-lg font-bold text-text-pri disabled:opacity-30">
+                                −
                               </button>
-                            ))}
+                              <div className="text-center">
+                                <span className="text-3xl font-bold text-brand-primary">{form.weeklyTarget}</span>
+                                <p className="text-[10px] text-text-sec mt-0.5">times / week</p>
+                              </div>
+                              <button
+                                onClick={() => setForm({ ...form, weeklyTarget: Math.min(7, form.weeklyTarget + 1) })}
+                                disabled={form.weeklyTarget >= 7}
+                                className="w-10 h-10 rounded-full border border-border bg-bg-surface flex items-center justify-center text-lg font-bold text-text-pri disabled:opacity-30">
+                                +
+                              </button>
+                            </div>
                           </div>
-                          {form.weeklyDays.length > 0 && (
-                            <p className="text-[11px] text-brand-primary mt-2 font-semibold">
-                              ✓ {form.weeklyDays.length} day{form.weeklyDays.length !== 1 ? 's' : ''} selected
-                            </p>
-                          )}
+
+                          <div className="border-t border-border" />
+
+                          {/* Default days (optional) */}
+                          <div>
+                            <p className="text-xs font-semibold text-text-pri mb-1">Which days? <span className="text-text-mut font-normal">(optional)</span></p>
+                            <p className="text-[11px] text-text-sec mb-3">You can set or change days later in the weekly view</p>
+                            <div className="flex flex-wrap gap-2">
+                              {days.map((d) => (
+                                <button key={d.value}
+                                  onClick={() => toggleDay(d.value)}
+                                  className={`px-3 py-2 rounded-pill text-xs font-semibold border transition-all
+                                    ${form.weeklyDays.includes(d.value) ? 'bg-brand-primary text-white border-brand-primary' : 'bg-bg-surface border-border text-text-sec'}`}>
+                                  {d.label}
+                                </button>
+                              ))}
+                            </div>
+                            {form.weeklyDays.length > 0 && (
+                              <p className="text-[11px] text-brand-primary mt-2 font-semibold">
+                                ✓ {form.weeklyDays.length} day{form.weeklyDays.length !== 1 ? 's' : ''} selected
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </motion.div>
                     )}

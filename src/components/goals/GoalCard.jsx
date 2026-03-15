@@ -33,6 +33,7 @@ export default function GoalCard({ goal }) {
   // Weekly progress
   const isWeekly = goal.frequency === 'weekly'
   const count = isWeekly ? weeklyCount(goal) : 0
+  const weeklyTarget = isWeekly ? (goal.weeklyTarget ?? goal.weeklyDays?.length ?? 1) : 0
 
   // Urgency for monthly goals
   const urgency = getUrgency({ goal, complete })
@@ -85,9 +86,9 @@ export default function GoalCard({ goal }) {
               <span className="text-[11px] font-semibold text-orange-500">🔥 {goal.streak}</span>
             )}
             {/* Weekly progress badge */}
-            {isWeekly && count > 0 && (
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-pill bg-purple-100 text-purple-700">
-                {count}× this week
+            {isWeekly && (
+              <span className={`text-[11px] font-medium px-2 py-0.5 rounded-pill ${count >= weeklyTarget ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'}`}>
+                {count}/{weeklyTarget}× this week
               </span>
             )}
             {/* Monthly urgency */}
