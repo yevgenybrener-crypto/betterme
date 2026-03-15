@@ -65,8 +65,7 @@ export default function GoalCard({ goal }) {
       <motion.div layout
         className={`bg-bg-card rounded-card p-4 flex items-center gap-3 border shadow-card mb-2.5
           ${urgency ? 'border-l-[4px]' : 'border-border'}
-          ${complete ? 'opacity-60 bg-bg-surface' : ''}
-          ${isModeB && !todayScheduled ? 'opacity-80' : ''}`}
+          ${complete ? 'opacity-60 bg-bg-surface' : ''}`}
         style={{ borderLeftColor: borderColor }}
         onContextMenu={(e) => { e.preventDefault(); setShowOptions(true) }}
       >
