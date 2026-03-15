@@ -70,93 +70,73 @@ const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 function getPlanType(goal) {
   if (!goal) return null
   if (goal.frequency === 'monthly') return 'monthly'
-  if (goal.frequency === 'weekly' && goal.weeklyMode === 'days') return 'modeB'
-  if (goal.frequency === 'weekly') return 'modeA'
-  return 'daily' // daily — intention for today
+  if (goal.frequency === 'weekly') return 'weekly'
+  return 'daily'
 }
 
-// ─── Mode A Day Picker ────────────────────────────────────────────────────────
-function ModeADayPicker({ goal, offset, workdayPreset, completions, getWeeklySchedule, setWeeklySchedule }) {
+// ─── Unified Weekly Day Picker ─────────────────────────────────────────────────
+// Works for all weekly goals: shows scheduled days, allows changing them per-week
+function WeeklyDayPicker({ goal, offset, workdayPreset, completions, getEffectiveDays, getWeeklySchedule, setWeeklySchedule }) {
   const weekDates = getWeekDatesForOffset(offset, workdayPreset)
   const weekKey = weekPeriodKeyForOffset(offset, workdayPreset)
-  const plannedDays = getWeeklySchedule(goal, weekKey)
-  const target = goal.weeklyTimes ?? 1
+  // Effective days = week-specific override if set, otherwise goal's default days
+  const effectiveDays = getEffectiveDays(goal, weekKey)
   const today = getSimulatedDate()
   const todayISO = localISO(today)
-  const isFutureWeek = offset > 0
   const isPastWeek = offset < 0
 
-  function toggleDay(dayNum, iso) {
+  const completedCount = weekDates.filter(d => !!completions[`${goal.id}_${localISO(d)}`]).length
+
+  function toggleDay(dayNum) {
     if (isPastWeek) return
-    const today = getSimulatedDate()
-    const todayISO = localISO(today)
-    if (iso < todayISO) return // past days within current week also blocked
-    const isSelected = plannedDays.includes(dayNum)
-    if (!isSelected && plannedDays.length >= target) return // cap at target
+    const isSelected = effectiveDays.includes(dayNum)
     const newDays = isSelected
-      ? plannedDays.filter(d => d !== dayNum)
-      : [...plannedDays, dayNum]
+      ? effectiveDays.filter(d => d !== dayNum)
+      : [...effectiveDays, dayNum]
     setWeeklySchedule(goal, weekKey, newDays)
   }
-
-  const atCapacity = plannedDays.length >= target
-
-  const completedCount = weekDates.filter(d => {
-    const iso = localISO(d)
-    return !!completions[`${goal.id}_${iso}`]
-  }).length
 
   return (
     <div>
       <p className="text-sm font-semibold text-text-pri mb-1">
-        {isPastWeek ? 'Planned days' : `Which days do you plan to do it this week?`}
+        {isPastWeek ? 'Scheduled days' : 'Which days this week?'}
       </p>
       <p className="text-xs text-text-sec mb-3">
         {isPastWeek
-          ? `${plannedDays.length} day${plannedDays.length !== 1 ? 's' : ''} planned · ${completedCount} completed`
-          : atCapacity
-            ? `✅ ${plannedDays.length}/${target} days planned — you're all set for this week!`
-            : `Tap the days you think you'll complete it · ${plannedDays.length}/${target} picked`}
+          ? `${effectiveDays.length} day${effectiveDays.length !== 1 ? 's' : ''} scheduled · ${completedCount} completed`
+          : effectiveDays.length > 0
+            ? `${effectiveDays.length} day${effectiveDays.length !== 1 ? 's' : ''} planned — tap to adjust`
+            : "Tap to pick the days you'll do it this week"}
       </p>
       <div className="flex gap-1.5 mb-1">
         {weekDates.map(date => {
           const dayNum = date.getDay()
           const iso = localISO(date)
-          const isPlanned = plannedDays.includes(dayNum)
+          const isScheduled = effectiveDays.includes(dayNum)
           const isDone = !!completions[`${goal.id}_${iso}`]
           const isToday = iso === todayISO
-          const isPastDay = !isPastWeek && iso < todayISO
 
           return (
             <button key={iso}
-              onClick={() => toggleDay(dayNum, iso)}
-              disabled={isPastDay && !isDone}
+              onClick={() => toggleDay(dayNum)}
+              disabled={isPastWeek}
               className={`flex-1 flex flex-col items-center py-2 rounded-xl border-2 transition-all gap-1
                 ${isDone
                   ? 'border-brand-accent bg-brand-accent/10'
-                  : isPlanned
-                    ? isPastDay ? 'border-brand-primary/40 bg-brand-primary/5 opacity-60' : 'border-brand-primary bg-brand-primary/8'
-                    : isPastDay
-                      ? 'border-border/40 bg-bg-surface opacity-40'
-                      : atCapacity && !isPastWeek
-                        ? 'border-border/40 bg-bg-surface opacity-40'
-                        : 'border-border bg-bg-surface'}`}>
+                  : isScheduled
+                    ? 'border-brand-primary bg-brand-primary/8'
+                    : 'border-border bg-bg-surface'}`}>
               <span className={`text-[9px] font-bold uppercase ${
-                isDone ? 'text-green-600'
-                : isPlanned ? 'text-brand-primary'
-                : isToday ? 'text-brand-primary'
-                : 'text-text-sec'}`}>
+                isDone ? 'text-green-600' : isScheduled ? 'text-brand-primary' : isToday ? 'text-brand-primary' : 'text-text-sec'}`}>
                 {SHORT_DAYS[dayNum]}
               </span>
               <span className={`text-[13px] font-bold ${
-                isDone ? 'text-green-700'
-                : isPlanned ? 'text-brand-primary'
-                : 'text-text-pri'}`}>
+                isDone ? 'text-green-700' : isScheduled ? 'text-brand-primary' : 'text-text-pri'}`}>
                 {date.getDate()}
               </span>
               {isDone
                 ? <span className="text-[10px]">✅</span>
-                : isPlanned
+                : isScheduled
                   ? <div className="w-1.5 h-1.5 rounded-full bg-brand-primary" />
                   : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />
               }
@@ -165,7 +145,7 @@ function ModeADayPicker({ goal, offset, workdayPreset, completions, getWeeklySch
         })}
       </div>
       {!isPastWeek && (
-        <p className="text-[10px] text-text-mut pl-1 mt-1.5">Tap a day to plan it · tap again to remove</p>
+        <p className="text-[10px] text-text-mut pl-1 mt-1.5">Tap a day to schedule it · tap again to remove</p>
       )}
     </div>
   )
@@ -268,7 +248,7 @@ function IntentionField({ intentionKey, isPast, getIntention, setIntention, goal
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function GoalDetailModal({ goal, open, onClose }) {
   const { workdayPreset, getIntention, setIntention, journalEntries, completions,
-          getWeeklySchedule, setWeeklySchedule, getMonthlySchedule, setMonthlySchedule } = useStore()
+          getEffectiveDays, getWeeklySchedule, setWeeklySchedule, getMonthlySchedule, setMonthlySchedule } = useStore()
   const [offset, setOffset] = useState(0)
   const [showAllJournal, setShowAllJournal] = useState(false)
 
@@ -313,52 +293,52 @@ export default function GoalDetailModal({ goal, open, onClose }) {
         placeholder="What's your plan for today?"
       />
     )
-  } else if (planType === 'modeA') {
+  } else if (planType === 'weekly') {
     const weekKey = weekPeriodKeyForOffset(offset, workdayPreset)
+    const weekDates = getWeekDatesForOffset(offset, workdayPreset)
+    const effectiveDays = getEffectiveDays(goal, weekKey)
+    const scheduledDates = weekDates.filter(d => effectiveDays.includes(d.getDay()))
+
     planContent = (
       <div className="flex flex-col gap-4">
-        <ModeADayPicker
+        {/* Day picker — set/change which days this week */}
+        <WeeklyDayPicker
           goal={goal} offset={offset} workdayPreset={workdayPreset}
           completions={completions}
+          getEffectiveDays={getEffectiveDays}
           getWeeklySchedule={getWeeklySchedule}
           setWeeklySchedule={setWeeklySchedule}
         />
-        <IntentionField
-          intentionKey={weekKey}
-          isPast={isPast}
-          getIntention={getIntention}
-          setIntention={setIntention}
-          goal={goal}
-          placeholder="Any notes for this week? (optional)"
-        />
-      </div>
-    )
-  } else if (planType === 'modeB') {
-    const weekDates = getWeekDatesForOffset(offset, workdayPreset)
-    const scheduledDays = goal.weeklyDays || []
-    const scheduledDates = weekDates.filter(d => scheduledDays.includes(d.getDay()))
-    planContent = (
-      <div className="flex flex-col gap-4">
-        {scheduledDates.map(date => {
-          const iso = localISO(date)
-          const dayName = DAY_NAMES[date.getDay()]
-          const dayFmt = `${dayName}, ${date.toLocaleString('default', { month: 'short' })} ${date.getDate()}`
-          return (
-            <div key={iso}>
-              <p className="text-xs font-semibold text-text-sec mb-1.5">📅 {dayFmt}</p>
-              <IntentionField
-                intentionKey={iso}
-                isPast={isPast}
-                getIntention={getIntention}
-                setIntention={setIntention}
-                goal={goal}
-                placeholder={`What's your plan for ${dayName}?`}
-              />
-            </div>
-          )
-        })}
-        {scheduledDates.length === 0 && (
-          <p className="text-sm text-text-mut italic text-center py-2">No scheduled days in this week</p>
+
+        {/* Per-day intention fields for each scheduled day */}
+        {scheduledDates.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut">Plans per day</p>
+            {scheduledDates.map(date => {
+              const iso = localISO(date)
+              const dayName = DAY_NAMES[date.getDay()]
+              const dayFmt = `${dayName}, ${date.toLocaleString('default', { month: 'short' })} ${date.getDate()}`
+              return (
+                <div key={iso}>
+                  <p className="text-xs font-semibold text-text-sec mb-1.5">📅 {dayFmt}</p>
+                  <IntentionField
+                    intentionKey={iso}
+                    isPast={isPast}
+                    getIntention={getIntention}
+                    setIntention={setIntention}
+                    goal={goal}
+                    placeholder={`What's your plan for ${dayName}?`}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {scheduledDates.length === 0 && !isPast && (
+          <p className="text-sm text-text-mut italic text-center py-2 bg-bg-surface rounded-xl">
+            Pick days above to set plans for each one
+          </p>
         )}
       </div>
     )
@@ -434,7 +414,7 @@ export default function GoalDetailModal({ goal, open, onClose }) {
                 <>
                   <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-3">
                     {planType === 'daily' ? "Today's plan"
-                      : planType === 'modeA' ? 'Plan your week'
+                      : planType === 'weekly' ? 'Plan your week'
                       : planType === 'monthly' ? 'Plan this month'
                       : 'Your plan'}
                   </p>

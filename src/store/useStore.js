@@ -108,76 +108,68 @@ export const useStore = create(
 
       // --- Completion helpers ---
 
-      // Mode B (specific days): is today's daily key completed?
+      // Get effective scheduled days for a weekly goal in a specific week.
+      // Priority: weeklySchedules override → goal.weeklyDays default → []
+      getEffectiveDays: (goal, weekKey) => {
+        if (!goal || goal.frequency !== 'weekly') return []
+        const scheduled = (get().weeklySchedules || {})[`${goal.id}_${weekKey}`]
+        if (scheduled !== undefined && scheduled !== null) return scheduled
+        return goal.weeklyDays || []
+      },
+
+      // Is today's per-day completion key set?
       isDayCompleted: (goal) => {
-        if (goal.frequency !== 'weekly' || goal.weeklyMode !== 'days') return false
-        const key = `${goal.id}_${todayKey()}`
-        return !!get().completions[key]
+        if (goal.frequency !== 'weekly') return false
+        return !!get().completions[`${goal.id}_${todayKey()}`]
       },
 
-      // Mode A: has the user already completed this goal today?
-      isModeACompletedToday: (goal) => {
-        if (goal.frequency !== 'weekly' || goal.weeklyMode === 'days') return false
-        const dayKey = `${goal.id}_modeA_${todayKey()}`
-        return !!get().completions[dayKey]
-      },
+      // Backward compat stub — no longer needed in unified model
+      isModeACompletedToday: (_goal) => false,
 
-      // Mode A (times): how many completions this week?
+      // Count completed days in the current week (per-day boolean keys)
       weeklyCount: (goal) => {
         if (goal.frequency !== 'weekly') return 0
-        const key = `${goal.id}_${weekPeriodKey(get().workdayPreset)}`
-        return get().completions[key] || 0
+        const { workdayPreset, completions } = get()
+        const weekStart = getWeekStartDay(workdayPreset)
+        const today = getSimulatedDate()
+        const dayOfWeek = (today.getDay() - weekStart + 7) % 7
+        const ws = new Date(today)
+        ws.setDate(today.getDate() - dayOfWeek)
+        let count = 0
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(ws)
+          d.setDate(ws.getDate() + i)
+          const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+          if (completions[`${goal.id}_${iso}`]) count++
+        }
+        return count
       },
 
       // Universal: is this goal "done" for its current period?
       isCompleted: (goal) => {
-        const { workdayPreset, completions } = get()
-        if (goal.frequency !== 'weekly') {
-          const key = `${goal.id}_${periodKey(goal, workdayPreset)}`
-          return !!completions[key]
-        }
-        // Mode B: done = today's day is scheduled AND today is completed
-        if (goal.weeklyMode === 'days') {
-          if (!isTodayScheduled(goal.weeklyDays || [])) return false
+        const { completions } = get()
+        if (goal.frequency === 'daily') {
           return !!completions[`${goal.id}_${todayKey()}`]
         }
-        // Mode A (times) or legacy: done = count >= target
-        const target = goal.weeklyTimes ?? 1
-        const key = `${goal.id}_${weekPeriodKey(workdayPreset)}`
-        return (completions[key] || 0) >= target
+        if (goal.frequency === 'weekly') {
+          // Done today = today's per-day key is set
+          return !!completions[`${goal.id}_${todayKey()}`]
+        }
+        if (goal.frequency === 'monthly') {
+          const now = getSimulatedDate()
+          const key = `${goal.id}_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+          return !!completions[key]
+        }
+        return false
       },
 
-      // Universal: mark completion
+      // Universal: mark/unmark completion — always per-day for weekly
       setCompletion: (goal, value) => {
-        const { workdayPreset } = get()
-        if (goal.frequency === 'weekly') {
-          if (goal.weeklyMode === 'days') {
-            // Mode B: toggle today's daily key
-            const key = `${goal.id}_${todayKey()}`
-            set((s) => ({ completions: { ...s.completions, [key]: value } }))
-          } else {
-            // Mode A: increment count (or reset on value=false)
-            // Guard: only one completion per day — use goalId_todayKey as a daily lock
-            const weekKey = `${goal.id}_${weekPeriodKey(workdayPreset)}`
-            const dayKey = `${goal.id}_modeA_${todayKey()}`
-            set((s) => {
-              const current = s.completions[weekKey] || 0
-              const target = goal.weeklyTimes ?? 1
-              if (value) {
-                // Block same-day double-tap
-                if (s.completions[dayKey]) return s
-                const newCount = Math.min(current + 1, target)
-                return { completions: { ...s.completions, [weekKey]: newCount, [dayKey]: true } }
-              } else {
-                // Undo: decrement and clear today's lock
-                const newCount = Math.max(current - 1, 0)
-                const next = { ...s.completions, [weekKey]: newCount }
-                delete next[dayKey]
-                return { completions: next }
-              }
-            })
-          }
+        if (goal.frequency === 'weekly' || goal.frequency === 'daily') {
+          const key = `${goal.id}_${todayKey()}`
+          set((s) => ({ completions: { ...s.completions, [key]: value } }))
         } else {
+          const { workdayPreset } = get()
           const key = `${goal.id}_${periodKey(goal, workdayPreset)}`
           set((s) => ({ completions: { ...s.completions, [key]: value } }))
         }
@@ -227,40 +219,6 @@ export const useStore = create(
       // Toggle a specific day's completion (used by WeekGrid retroactive taps)
       // Does NOT update streak — streak is only updated from GoalCard live completions
       toggleDayCompletion: (goal, dateISO) => {
-        // Mode A with planned days: also sync the week count
-        if (goal.frequency === 'weekly' && goal.weeklyMode !== 'days') {
-          const { workdayPreset } = get()
-          const weekStartDay = getWeekStartDay(workdayPreset)
-          // Compute week period key for this specific date
-          const parts = dateISO.split('-').map(Number)
-          const date = new Date(parts[0], parts[1] - 1, parts[2])
-          const dow = (date.getDay() - weekStartDay + 7) % 7
-          const ws = new Date(date)
-          ws.setDate(date.getDate() - dow)
-          const wKey = `${goal.id}_${ws.getFullYear()}-${String(ws.getMonth()+1).padStart(2,'0')}-${String(ws.getDate()).padStart(2,'0')}-W${weekStartDay}`
-          const dayKey = `${goal.id}_${dateISO}`
-          const lockKey = `${goal.id}_modeA_${dateISO}`
-          set((s) => {
-            const isDone = !!s.completions[dayKey]
-            const lockedByCard = !!s.completions[lockKey]
-            const currentCount = s.completions[wKey] || 0
-            const target = goal.weeklyTimes ?? 1
-            if (isDone) {
-              // Undo: clear day, clear lock, decrement count
-              const next = { ...s.completions, [dayKey]: false }
-              delete next[lockKey]
-              next[wKey] = Math.max(currentCount - 1, 0)
-              return { completions: next }
-            } else {
-              // Complete: set day + lock; only increment if not already locked (prevents double-count with GoalCard)
-              const next = { ...s.completions, [dayKey]: true, [lockKey]: true }
-              if (!lockedByCard) next[wKey] = Math.min(currentCount + 1, target)
-              return { completions: next }
-            }
-          })
-          return
-        }
-        // Mode B / daily: toggle boolean
         const key = `${goal.id}_${dateISO}`
         set((s) => ({
           completions: { ...s.completions, [key]: !s.completions[key] },

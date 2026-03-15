@@ -43,7 +43,7 @@ function groupByCategory(goals) {
 }
 
 export default function WeekGrid() {
-  const { goals, completions, workdayPreset, toggleDayCompletion, weeklyCount, getWeeklySchedule, getMonthlySchedule, getIntention } = useStore()
+  const { goals, completions, workdayPreset, toggleDayCompletion, weeklyCount, getEffectiveDays, getWeeklySchedule, setWeeklySchedule, getMonthlySchedule, getIntention } = useStore()
   const weekStartDay = getWeekStartDay(workdayPreset)
   const today = getSimulatedDate()
   const todayISO = localISO(today)
@@ -68,22 +68,15 @@ export default function WeekGrid() {
     return `${y}-${m}-${d}-W${weekStartDay}`
   })()
 
-  // Mode A goals that have planned days for the displayed week → treated as scheduled
-  const modeAWithPlan = (g) =>
-    g.frequency === 'weekly' &&
-    g.weeklyMode !== 'days' &&
-    (getWeeklySchedule(g, displayedWeekKey) || []).length > 0
-
-  // Section 1: Scheduled grid (daily + Mode B + Mode A with planned days)
+  // Section 1: Scheduled grid — daily + weekly goals with effective days this week
   const scheduledGoals = activeGoals.filter(g =>
     g.frequency === 'daily' ||
-    (g.frequency === 'weekly' && g.weeklyMode === 'days') ||
-    modeAWithPlan(g)
+    (g.frequency === 'weekly' && getEffectiveDays(g, displayedWeekKey).length > 0)
   )
 
-  // Section 2: Flexible (Mode A with no planned days + monthly)
+  // Section 2: Flexible — weekly goals with no scheduled days + monthly
   const flexibleGoals = activeGoals.filter(g =>
-    (g.frequency === 'weekly' && g.weeklyMode !== 'days' && !modeAWithPlan(g)) ||
+    (g.frequency === 'weekly' && getEffectiveDays(g, displayedWeekKey).length === 0) ||
     g.frequency === 'monthly'
   )
 
@@ -104,13 +97,8 @@ export default function WeekGrid() {
       if (goal.weekendsOnly && isWorkday(dayNum, workdayPreset)) return false
       return true
     }
-    if (goal.frequency === 'weekly' && goal.weeklyMode === 'days') {
-      return (goal.weeklyDays || []).includes(dayNum)
-    }
-    // Mode A with planned days — use weeklySchedules for this week
-    if (goal.frequency === 'weekly' && goal.weeklyMode !== 'days') {
-      const plannedDays = getWeeklySchedule(goal, displayedWeekKey) || []
-      return plannedDays.includes(dayNum)
+    if (goal.frequency === 'weekly') {
+      return getEffectiveDays(goal, displayedWeekKey).includes(dayNum)
     }
     return false
   }

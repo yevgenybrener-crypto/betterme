@@ -6,31 +6,34 @@ import ProgressRing from '../components/dashboard/ProgressRing'
 import WeekGrid from '../components/dashboard/WeekGrid'
 import { CATEGORIES } from '../lib/constants'
 import { getSimulatedDate } from '../lib/simulatedDate'
-import { todayKey, weekPeriodKey, getWeekStartDay, isWorkday, isTodayScheduled } from '../store/useStore'
+import { todayKey, weekPeriodKey, getWeekStartDay, isWorkday } from '../store/useStore'
 
 export default function Home() {
-  const { goals, completions, user, workdayPreset } = useStore()
+  const { goals, completions, user, workdayPreset, getEffectiveDays } = useStore()
   const [view, setView] = useState('daily') // 'daily' | 'weekly'
 
   const activeGoals = goals.filter((g) => !g.archived)
+  const thisWeekKey = weekPeriodKey(workdayPreset)
+  const todayDayNum = getSimulatedDate().getDay()
 
-  // Group 1: specifically scheduled for today
+  // Group 1: scheduled for today
   // - daily goals active today
-  // - Mode B weekly goals where today IS one of the scheduled days
+  // - weekly goals where today is in their effective days (default or this-week override)
   const scheduledToday = activeGoals.filter((g) => {
     if (g.frequency === 'daily') return isActiveToday(g, workdayPreset)
-    if (g.frequency === 'weekly' && g.weeklyMode === 'days') {
-      return isTodayScheduled(g.weeklyDays || [])
+    if (g.frequency === 'weekly') {
+      return getEffectiveDays(g, thisWeekKey).includes(todayDayNum)
     }
     return false
   })
 
-  // Group 2: flexible — can be done any day this period
-  // - Mode A weekly (X times per week)
-  // - legacy weekly (no weeklyMode)
+  // Group 2: flexible — no fixed day today
+  // - weekly goals with no effective days today
   // - monthly goals
   const flexibleGoals = activeGoals.filter((g) => {
-    if (g.frequency === 'weekly' && g.weeklyMode !== 'days') return true
+    if (g.frequency === 'weekly') {
+      return !getEffectiveDays(g, thisWeekKey).includes(todayDayNum)
+    }
     if (g.frequency === 'monthly') return true
     return false
   })

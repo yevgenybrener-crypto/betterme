@@ -4,35 +4,25 @@ import { CATEGORIES } from '../../lib/constants'
 import ReflectModal from './ReflectModal'
 import GoalOptionsMenu from './GoalOptionsMenu'
 import GoalDetailModal from './GoalDetailModal'
-import { useStore, isTodayScheduled, nextScheduledDay, daysLeftInWeek, weekPeriodKey, getWeekStartDay } from '../../store/useStore'
+import { useStore, weekPeriodKey } from '../../store/useStore'
 import { getSimulatedDate } from '../../lib/simulatedDate'
 
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
 export default function GoalCard({ goal }) {
-  const { isCompleted, setCompletion, updateGoal, showToast, workdayPreset, weeklyCount, getIntention, isModeACompletedToday } = useStore()
+  const { isCompleted, setCompletion, updateGoal, showToast, workdayPreset, weeklyCount, getIntention } = useStore()
   const [showReflect, setShowReflect] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
   const [showDetail, setShowDetail] = useState(false)
 
-  // Intention preview — key depends on goal type
+  // Intention preview — today's plan for weekly/daily, month plan for monthly
   const intention = (() => {
-    if (goal.frequency === 'weekly' && goal.weeklyMode === 'days') {
-      // Mode B: show today's plan if today is scheduled
+    if (goal.frequency === 'weekly' || goal.frequency === 'daily') {
       const today = getSimulatedDate()
-      const y = today.getFullYear()
-      const m = String(today.getMonth() + 1).padStart(2, '0')
-      const d = String(today.getDate()).padStart(2, '0')
-      return getIntention(goal, `${y}-${m}-${d}`)
-    }
-    if (goal.frequency === 'weekly') {
-      // Mode A / legacy: show this week's plan
-      return getIntention(goal, weekPeriodKey(workdayPreset))
+      const iso = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+      return getIntention(goal, iso)
     }
     if (goal.frequency === 'monthly') {
       const today = getSimulatedDate()
-      const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
-      return getIntention(goal, key)
+      return getIntention(goal, `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`)
     }
     return ''
   })()
@@ -40,30 +30,15 @@ export default function GoalCard({ goal }) {
   const complete = isCompleted(goal)
   const category = CATEGORIES.find((c) => c.id === goal.category)
 
-  // Weekly mode helpers
+  // Weekly progress
   const isWeekly = goal.frequency === 'weekly'
-  const isModeB = isWeekly && goal.weeklyMode === 'days'
-  const isModeA = isWeekly && goal.weeklyMode === 'times'
-  const isLegacyWeekly = isWeekly && !goal.weeklyMode
+  const count = isWeekly ? weeklyCount(goal) : 0
 
-  // Mode B: is today a scheduled day?
-  const todayScheduled = isModeB ? isTodayScheduled(goal.weeklyDays || []) : true
-  const nextDay = isModeB && !todayScheduled ? nextScheduledDay(goal.weeklyDays || []) : null
+  // Urgency for monthly goals
+  const urgency = getUrgency({ goal, complete })
 
-  // Mode A: count & target
-  const count = (isModeA || isLegacyWeekly) ? weeklyCount(goal) : 0
-  const target = goal.weeklyTimes ?? 1
-  const daysLeft = daysLeftInWeek(workdayPreset)
-  const remaining = target - count
-
-  // Urgency
-  const urgency = getUrgency({ goal, complete, isModeA, isLegacyWeekly, isModeB, todayScheduled, remaining, daysLeft, workdayPreset })
-
-  // Mode A: already tapped today?
-  const modeADoneToday = (isModeA || isLegacyWeekly) ? isModeACompletedToday(goal) : false
-
-  // Can the user tap complete?
-  const canComplete = !complete && (isModeB ? todayScheduled : true) && !modeADoneToday
+  // Can complete: not already done today
+  const canComplete = !complete
 
   function handleComplete() {
     if (!canComplete) return
@@ -71,11 +46,7 @@ export default function GoalCard({ goal }) {
 
     const newStreak = (goal.streak || 0) + 1
     updateGoal(goal.id, { streak: newStreak })
-
-    // Show reflect only when fully done (Mode A: hit target; others: always)
-    const nowCount = count + 1
-    const isDone = isModeA ? nowCount >= target : true
-    if (isDone) setShowReflect(true)
+    setShowReflect(true)
 
     const milestones = [3, 7, 14, 30, 60, 100]
     if (milestones.includes(newStreak)) {
@@ -114,30 +85,21 @@ export default function GoalCard({ goal }) {
             {goal.streak > 0 && (
               <span className="text-[11px] font-semibold text-orange-500">🔥 {goal.streak}</span>
             )}
-
-            {/* Mode A: progress badge */}
-            {(isModeA || isLegacyWeekly) && !complete && (
+            {/* Weekly progress badge */}
+            {isWeekly && count > 0 && (
               <span className="text-[11px] font-medium px-2 py-0.5 rounded-pill bg-purple-100 text-purple-700">
-                {count}/{target} this week
+                {count}× this week
               </span>
             )}
-
-            {/* Mode B: next day badge */}
-            {isModeB && !todayScheduled && nextDay && (
-              <span className="text-[11px] font-medium px-2 py-0.5 rounded-pill bg-bg-surface text-text-sec">
-                🗓️ Next: {nextDay}
-              </span>
-            )}
-
-            {/* Urgency badges */}
+            {/* Monthly urgency */}
             {urgency === 'warn' && (
               <span className="text-[11px] font-medium px-2 py-0.5 rounded-pill bg-yellow-100 text-yellow-700">
-                🟡 Need {remaining} more, {daysLeft} days left
+                🟡 Last days of the month
               </span>
             )}
             {urgency === 'last' && (
               <span className="text-[11px] font-medium px-2 py-0.5 rounded-pill bg-red-100 text-red-600">
-                🔴 Today's last chance
+                🔴 Last day of the month
               </span>
             )}
           </div>
@@ -165,15 +127,8 @@ export default function GoalCard({ goal }) {
                 <path d="M2 7l4 4 6-7" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </motion.div>
-          ) : modeADoneToday ? (
-            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}
-              className="w-7 h-7 rounded-full bg-brand-primary/20 flex items-center justify-center">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M2 7l4 4 6-7" stroke="#6C63FF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </motion.div>
           ) : (
-            <div className={`w-7 h-7 rounded-full border-2 ${canComplete ? 'border-brand-primary' : 'border-border'}`} />
+            <div className="w-7 h-7 rounded-full border-2 border-brand-primary" />
           )}
         </button>
       </motion.div>
@@ -185,37 +140,14 @@ export default function GoalCard({ goal }) {
   )
 }
 
-function getUrgency({ goal, complete, isModeA, isLegacyWeekly, isModeB, todayScheduled, remaining, daysLeft, workdayPreset }) {
+function getUrgency({ goal, complete }) {
   if (complete) return null
-  if (goal.frequency !== 'weekly' && goal.frequency !== 'monthly') {
-    // Daily: no urgency
-    return null
-  }
-  if (goal.frequency === 'monthly') {
-    const now = getSimulatedDate()
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-    const d = lastDay - now.getDate()
-    if (d === 0) return 'last'
-    if (d <= 2) return 'warn'
-    return null
-  }
-  // Weekly
-  if (isModeB) {
-    if (!todayScheduled) return null // off-day, no urgency
-    // On a scheduled day — is it the last scheduled day of the week?
-    const weekStartDay = workdayPreset === 'sun-thu' ? 0 : 1
-    const todayDay = getSimulatedDate().getDay()
-    const remainingScheduled = (goal.weeklyDays || []).filter(d => {
-      const daysFromToday = (d - todayDay + 7) % 7
-      return daysFromToday > 0
-    })
-    if (remainingScheduled.length === 0) return 'last' // no more scheduled days this week
-    return null
-  }
-  // Mode A or legacy
-  if (remaining <= 0) return null
-  if (daysLeft === 0 && remaining > 0) return 'last'
-  if (remaining > daysLeft) return 'warn'
+  if (goal.frequency !== 'monthly') return null
+  const now = getSimulatedDate()
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const d = lastDay - now.getDate()
+  if (d === 0) return 'last'
+  if (d <= 2) return 'warn'
   return null
 }
 
