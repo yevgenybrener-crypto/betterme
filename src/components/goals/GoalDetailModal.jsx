@@ -72,7 +72,7 @@ function getPlanType(goal) {
   if (goal.frequency === 'monthly') return 'monthly'
   if (goal.frequency === 'weekly' && goal.weeklyMode === 'days') return 'modeB'
   if (goal.frequency === 'weekly') return 'modeA'
-  return null // daily — no plan
+  return 'daily' // daily — intention for today
 }
 
 // ─── Mode A Day Picker ────────────────────────────────────────────────────────
@@ -301,7 +301,19 @@ export default function GoalDetailModal({ goal, open, onClose }) {
   // ── Plan section content ──
   let planContent = null
 
-  if (planType === 'modeA') {
+  if (planType === 'daily') {
+    const todayISO = localISO(getSimulatedDate())
+    planContent = (
+      <IntentionField
+        intentionKey={todayISO}
+        isPast={false}
+        getIntention={getIntention}
+        setIntention={setIntention}
+        goal={goal}
+        placeholder="What's your plan for today?"
+      />
+    )
+  } else if (planType === 'modeA') {
     const weekKey = weekPeriodKeyForOffset(offset, workdayPreset)
     planContent = (
       <div className="flex flex-col gap-4">
@@ -417,29 +429,34 @@ export default function GoalDetailModal({ goal, open, onClose }) {
 
               <div className="border-t border-border my-4" />
 
-              {/* Plan section — only for weekly/monthly goals */}
+              {/* Plan section — all goal types */}
               {planType && (
                 <>
                   <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-3">
-                    {planType === 'modeA' ? 'Plan your week' : planType === 'monthly' ? 'Plan this month' : 'Your plan'}
+                    {planType === 'daily' ? "Today's plan"
+                      : planType === 'modeA' ? 'Plan your week'
+                      : planType === 'monthly' ? 'Plan this month'
+                      : 'Your plan'}
                   </p>
 
-                  {/* Navigator */}
-                  <div className="flex items-center justify-between mb-4">
-                    <button
-                      onClick={() => setOffset(o => Math.max(o - 1, -MAX_NAV))}
-                      disabled={offset <= -MAX_NAV}
-                      className="text-brand-primary font-bold text-lg px-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-brand-primary/8 disabled:opacity-25">
-                      ←
-                    </button>
-                    <p className="text-sm font-bold text-text-pri text-center">{periodLabel}</p>
-                    <button
-                      onClick={() => setOffset(o => Math.min(o + 1, MAX_NAV))}
-                      disabled={offset >= MAX_NAV}
-                      className="text-brand-primary font-bold text-lg px-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-brand-primary/8 disabled:opacity-25">
-                      →
-                    </button>
-                  </div>
+                  {/* Week/month navigator — not shown for daily goals */}
+                  {planType !== 'daily' && (
+                    <div className="flex items-center justify-between mb-4">
+                      <button
+                        onClick={() => setOffset(o => Math.max(o - 1, -MAX_NAV))}
+                        disabled={offset <= -MAX_NAV}
+                        className="text-brand-primary font-bold text-lg px-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-brand-primary/8 disabled:opacity-25">
+                        ←
+                      </button>
+                      <p className="text-sm font-bold text-text-pri text-center">{periodLabel}</p>
+                      <button
+                        onClick={() => setOffset(o => Math.min(o + 1, MAX_NAV))}
+                        disabled={offset >= MAX_NAV}
+                        className="text-brand-primary font-bold text-lg px-3 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-brand-primary/8 disabled:opacity-25">
+                        →
+                      </button>
+                    </div>
+                  )}
 
                   {planContent}
 
