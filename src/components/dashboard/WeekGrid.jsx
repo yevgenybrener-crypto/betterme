@@ -258,8 +258,8 @@ export default function WeekGrid() {
                       {/* Goal name */}
                       <p className="text-[13px] font-bold text-text-pri leading-snug mb-2">{goal.name}</p>
 
-                      {/* Progress bar (Mode A) */}
-                      {isModeA && (
+                      {/* Progress bar */}
+                      {isWeekly && (
                         <div className="flex items-center gap-2 mb-2">
                           <div className="flex-1 h-1.5 bg-bg-surface rounded-pill overflow-hidden max-w-[100px]">
                             <div className="h-full bg-brand-primary rounded-pill transition-all" style={{ width: `${pct}%` }} />
@@ -306,7 +306,7 @@ export default function WeekGrid() {
                       {/* No plan yet */}
                       {!hasPlanned && !monthDone && (
                         <p className="text-[10px] text-text-mut">
-                          {isModeA ? 'Tap to plan your days →' : 'Tap to pick a date →'}
+                          {isWeekly ? 'Tap to plan your days →' : 'Tap to pick a date →'}
                         </p>
                       )}
                     </div>
