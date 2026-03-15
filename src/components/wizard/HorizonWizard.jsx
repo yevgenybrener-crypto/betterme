@@ -27,7 +27,7 @@ const defaultForm = {
   weeklyDays: [],
   category: '',
   name: '',
-  type: 'binary',
+
   target: '',
   weekdaysOnly: false,
   weekendsOnly: false,
@@ -292,27 +292,7 @@ export default function HorizonWizard() {
                     placeholder="e.g. Run 5km"
                     className="w-full px-4 py-3 rounded-card border-2 border-brand-primary bg-bg-card text-sm text-text-pri mb-4 focus:outline-none" />
 
-                  <label className="text-[11px] font-semibold uppercase tracking-widest text-text-sec mb-1.5 block">Type</label>
-                  <div className="flex gap-2 mb-5">
-                    {['binary', 'numeric'].map((t) => (
-                      <button key={t} onClick={() => setForm({ ...form, type: t })}
-                        className={`flex-1 py-3 rounded-xl font-semibold text-sm capitalize border transition-all
-                          ${form.type === t ? 'bg-brand-primary text-white border-brand-primary' : 'bg-bg-card text-text-sec border-border'}`}>
-                        {t === 'binary' ? 'Binary ✓' : 'Numeric'}
-                      </button>
-                    ))}
-                  </div>
 
-                  {form.type === 'numeric' && (
-                    <div className="flex gap-3 mb-5">
-                      <div className="flex-1">
-                        <label className="text-[11px] font-semibold uppercase tracking-widest text-text-sec mb-1.5 block">Target</label>
-                        <input type="number" value={form.target} onChange={(e) => setForm({ ...form, target: e.target.value })}
-                          placeholder="5"
-                          className="w-full px-4 py-3 rounded-card border border-border bg-bg-card text-sm focus:outline-none focus:border-brand-primary" />
-                      </div>
-                    </div>
-                  )}
 
                   {templates.length > 0 && (
                     <>
