@@ -59,29 +59,7 @@ export default function WeekGrid() {
 
   const activeGoals = goals.filter(g => !g.archived)
 
-  // Mode A goals that have planned days for the displayed week → treated as scheduled
-  const modeAWithPlan = (g) =>
-    g.frequency === 'weekly' &&
-    g.weeklyMode !== 'days' &&
-    (getWeeklySchedule(g, displayedWeekKey) || []).length > 0
-
-  // Section 1: Scheduled grid
-  // - daily goals
-  // - Mode B weekly (fixed days)
-  // - Mode A goals that have planned days THIS week
-  const scheduledGoals = activeGoals.filter(g =>
-    g.frequency === 'daily' ||
-    (g.frequency === 'weekly' && g.weeklyMode === 'days') ||
-    modeAWithPlan(g)
-  )
-
-  // Section 2: Flexible — Mode A with NO planned days + monthly
-  const flexibleGoals = activeGoals.filter(g =>
-    (g.frequency === 'weekly' && g.weeklyMode !== 'days' && !modeAWithPlan(g)) ||
-    g.frequency === 'monthly'
-  )
-
-  // Week period key for this displayed week
+  // Week period key — must be computed before filters that depend on it
   const displayedWeekKey = (() => {
     const ws = weekDates[0]
     const y = ws.getFullYear()
@@ -89,6 +67,25 @@ export default function WeekGrid() {
     const d = String(ws.getDate()).padStart(2, '0')
     return `${y}-${m}-${d}-W${weekStartDay}`
   })()
+
+  // Mode A goals that have planned days for the displayed week → treated as scheduled
+  const modeAWithPlan = (g) =>
+    g.frequency === 'weekly' &&
+    g.weeklyMode !== 'days' &&
+    (getWeeklySchedule(g, displayedWeekKey) || []).length > 0
+
+  // Section 1: Scheduled grid (daily + Mode B + Mode A with planned days)
+  const scheduledGoals = activeGoals.filter(g =>
+    g.frequency === 'daily' ||
+    (g.frequency === 'weekly' && g.weeklyMode === 'days') ||
+    modeAWithPlan(g)
+  )
+
+  // Section 2: Flexible (Mode A with no planned days + monthly)
+  const flexibleGoals = activeGoals.filter(g =>
+    (g.frequency === 'weekly' && g.weeklyMode !== 'days' && !modeAWithPlan(g)) ||
+    g.frequency === 'monthly'
+  )
 
   // Month key for this displayed week's month
   const displayedMonthKey = (() => {
