@@ -43,7 +43,7 @@ function groupByCategory(goals) {
 }
 
 export default function WeekGrid() {
-  const { goals, completions, workdayPreset, toggleDayCompletion, weeklyCount, getWeeklySchedule, getMonthlySchedule } = useStore()
+  const { goals, completions, workdayPreset, toggleDayCompletion, weeklyCount, getWeeklySchedule, getMonthlySchedule, getIntention } = useStore()
   const weekStartDay = getWeekStartDay(workdayPreset)
   const today = getSimulatedDate()
   const todayISO = localISO(today)
@@ -59,15 +59,25 @@ export default function WeekGrid() {
 
   const activeGoals = goals.filter(g => !g.archived)
 
-  // Section 1: Scheduled (daily + Mode B weekly)
+  // Mode A goals that have planned days for the displayed week → treated as scheduled
+  const modeAWithPlan = (g) =>
+    g.frequency === 'weekly' &&
+    g.weeklyMode !== 'days' &&
+    (getWeeklySchedule(g, displayedWeekKey) || []).length > 0
+
+  // Section 1: Scheduled grid
+  // - daily goals
+  // - Mode B weekly (fixed days)
+  // - Mode A goals that have planned days THIS week
   const scheduledGoals = activeGoals.filter(g =>
     g.frequency === 'daily' ||
-    (g.frequency === 'weekly' && g.weeklyMode === 'days')
+    (g.frequency === 'weekly' && g.weeklyMode === 'days') ||
+    modeAWithPlan(g)
   )
 
-  // Section 2: Flexible (Mode A weekly + monthly)
+  // Section 2: Flexible — Mode A with NO planned days + monthly
   const flexibleGoals = activeGoals.filter(g =>
-    (g.frequency === 'weekly' && g.weeklyMode !== 'days') ||
+    (g.frequency === 'weekly' && g.weeklyMode !== 'days' && !modeAWithPlan(g)) ||
     g.frequency === 'monthly'
   )
 
@@ -99,6 +109,11 @@ export default function WeekGrid() {
     }
     if (goal.frequency === 'weekly' && goal.weeklyMode === 'days') {
       return (goal.weeklyDays || []).includes(dayNum)
+    }
+    // Mode A with planned days — use weeklySchedules for this week
+    if (goal.frequency === 'weekly' && goal.weeklyMode !== 'days') {
+      const plannedDays = getWeeklySchedule(goal, displayedWeekKey) || []
+      return plannedDays.includes(dayNum)
     }
     return false
   }
@@ -175,6 +190,12 @@ export default function WeekGrid() {
                         <span className="text-[11px] font-semibold text-text-pri leading-snug line-clamp-2">
                           {goal.name}
                         </span>
+                        {/* Mode A: show week count badge */}
+                        {goal.frequency === 'weekly' && goal.weeklyMode !== 'days' && (
+                          <span className="text-[9px] font-bold text-brand-primary">
+                            {weeklyCount(goal) || 0}/{goal.weeklyTimes ?? 1}×
+                          </span>
+                        )}
                       </div>
 
                       {/* Day cells */}
