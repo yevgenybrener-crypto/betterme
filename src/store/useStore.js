@@ -231,6 +231,32 @@ export const useStore = create(
         journalEntries: [entry, ...s.journalEntries],
       })),
 
+      // Book reading history — per goal
+      // readingHistory[goalId] = [{ bookId, title, author, emoji, genres, note, completedAt }]
+      readingHistory: {},
+      addReadingEntry: (goalId, entry) => set((s) => {
+        const prev = (s.readingHistory || {})[goalId] || []
+        return { readingHistory: { ...(s.readingHistory || {}), [goalId]: [entry, ...prev] } }
+      }),
+      getReadingHistory: (goalId) => {
+        return ((get().readingHistory || {})[goalId]) || []
+      },
+
+      // Current book being read — per goal
+      // currentBook[goalId] = { bookId, title, author, emoji, genres, startedAt }
+      currentBook: {},
+      setCurrentBook: (goalId, book) => set((s) => ({
+        currentBook: { ...(s.currentBook || {}), [goalId]: book }
+      })),
+      clearCurrentBook: (goalId) => set((s) => {
+        const next = { ...(s.currentBook || {}) }
+        delete next[goalId]
+        return { currentBook: next }
+      }),
+      getCurrentBook: (goalId) => {
+        return (get().currentBook || {})[goalId] || null
+      },
+
       // UI state
       showWizard: false,
       setShowWizard: (v) => set({ showWizard: v }),
@@ -246,6 +272,7 @@ export const useStore = create(
       clearStore: () => set({
         goals: [], completions: {}, journalEntries: [],
         weeklySchedules: {}, monthlySchedules: {}, weeklyIntentions: {},
+        readingHistory: {}, currentBook: {},
         onboardingComplete: false, toast: null, activeTab: 'home',
       }),
     }),

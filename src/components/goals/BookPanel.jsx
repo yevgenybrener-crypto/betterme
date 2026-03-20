@@ -1,0 +1,307 @@
+import { useState, useMemo } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { BOOKS, GENRES, GENRE_COLORS, getPersonalizedBooks, getBestsellers, getBooksByGenre } from '../../lib/bookData'
+import { useStore } from '../../store/useStore'
+import { getSimulatedDate } from '../../lib/simulatedDate'
+
+// ─── Book Completion Modal ────────────────────────────────────────────────────
+function BookCompleteModal({ goal, book, onSave, onSkip }) {
+  const [note, setNote] = useState('')
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 z-[60] flex items-end"
+      onClick={onSkip}
+    >
+      <motion.div
+        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+        transition={{ type: 'spring', stiffness: 280, damping: 32 }}
+        className="w-full bg-bg-base rounded-t-3xl p-5 pb-10"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
+
+        <p className="text-xl font-bold text-text-pri text-center mb-1">🎉 Nice work!</p>
+        <p className="text-sm text-text-sec text-center mb-5">You finished this book</p>
+
+        {/* Book card */}
+        <div className="bg-bg-surface rounded-2xl p-4 flex gap-3 items-center mb-5 border border-border">
+          <span className="text-4xl flex-shrink-0">{book.emoji}</span>
+          <div>
+            <p className="text-sm font-bold text-text-pri">{book.title}</p>
+            <p className="text-xs text-text-sec mt-0.5">{book.author}</p>
+          </div>
+        </div>
+
+        <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-2">Your takeaway</p>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="Drop a golden nugget — what did you learn or feel?"
+          className="w-full min-h-[72px] px-4 py-3 rounded-2xl border-2 bg-bg-surface text-base text-text-pri placeholder:text-text-mut resize-none focus:outline-none leading-relaxed"
+          style={{ borderColor: note ? '#6C63FF' : 'rgba(108,99,255,0.25)' }}
+        />
+        <p className="text-[10px] text-text-mut mt-1 mb-4 pl-1">Optional — auto-saves on close</p>
+
+        <button onClick={() => onSave(note)}
+          className="w-full py-4 rounded-2xl bg-brand-primary text-white font-bold text-sm mb-2">
+          Save to my library 📚
+        </button>
+        <button onClick={onSkip}
+          className="w-full py-3 text-text-mut text-sm font-semibold">
+          Skip
+        </button>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// ─── Genre tag ────────────────────────────────────────────────────────────────
+function GenreTag({ genre }) {
+  const colors = GENRE_COLORS[genre] || { bg: '#F5F4FF', text: '#6C63FF' }
+  return (
+    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill"
+      style={{ background: colors.bg, color: colors.text }}>
+      {genre.charAt(0).toUpperCase() + genre.slice(1)}
+    </span>
+  )
+}
+
+// ─── Book Card ────────────────────────────────────────────────────────────────
+function BookCard({ book, onStart, onSave, isSaved }) {
+  return (
+    <div className="flex gap-3 p-3 rounded-2xl border border-border bg-bg-card mb-2">
+      <div className="w-11 h-[58px] rounded-lg flex items-center justify-center text-2xl flex-shrink-0 bg-bg-surface">
+        {book.emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-bold text-text-pri leading-snug">{book.title}</p>
+        <p className="text-[11px] text-text-sec mt-0.5">{book.author}</p>
+        {book.desc && <p className="text-[11px] text-text-mut mt-1.5 leading-relaxed line-clamp-2">{book.desc}</p>}
+        <div className="flex gap-1 mt-1.5 flex-wrap">
+          {book.genres.map(g => <GenreTag key={g} genre={g} />)}
+          {book.bestseller && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill bg-orange-100 text-orange-600">🏆 Bestseller</span>
+          )}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5 flex-shrink-0 justify-start pt-0.5">
+        <button onClick={onStart}
+          className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-brand-primary text-white whitespace-nowrap">
+          📖 Start
+        </button>
+        <button onClick={onSave}
+          className={`text-[11px] font-bold px-3 py-1.5 rounded-xl whitespace-nowrap transition-all
+            ${isSaved ? 'bg-brand-accent/15 text-green-700' : 'bg-bg-surface text-brand-primary border border-brand-primary/30'}`}>
+          {isSaved ? '✓ Saved' : '🔖 Save'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main BookPanel ───────────────────────────────────────────────────────────
+export default function BookPanel({ goal }) {
+  const {
+    getReadingHistory, addReadingEntry,
+    getCurrentBook, setCurrentBook, clearCurrentBook,
+  } = useStore()
+
+  const [activeFilter, setActiveFilter] = useState('foryou')
+  const [search, setSearch] = useState('')
+  const [savedIds, setSavedIds] = useState([])
+  const [completingBook, setCompletingBook] = useState(null)
+
+  const history = getReadingHistory(goal.id)
+  const readBookIds = history.map(e => e.bookId)
+  const currentBook = getCurrentBook(goal.id)
+
+  const personalizedBooks = useMemo(() => getPersonalizedBooks(readBookIds), [readBookIds.join(',')])
+  const bestsellerBooks = useMemo(() => getBestsellers(readBookIds), [readBookIds.join(',')])
+
+  function getFilteredBooks() {
+    let books
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      return BOOKS.filter(b =>
+        !readBookIds.includes(b.id) &&
+        (b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q))
+      )
+    }
+    if (activeFilter === 'foryou') books = personalizedBooks
+    else if (activeFilter === 'bestsellers') books = bestsellerBooks
+    else if (activeFilter === 'all') books = BOOKS.filter(b => !readBookIds.includes(b.id))
+    else books = getBooksByGenre(activeFilter, readBookIds)
+    return books
+  }
+
+  function handleStart(book) {
+    setCurrentBook(goal.id, { ...book, startedAt: new Date().toISOString() })
+  }
+
+  function handleDone() {
+    if (!currentBook) return
+    setCompletingBook(currentBook)
+  }
+
+  function handleSaveComplete(note) {
+    const entry = {
+      bookId: completingBook.id,
+      title: completingBook.title,
+      author: completingBook.author,
+      emoji: completingBook.emoji,
+      genres: completingBook.genres,
+      note,
+      completedAt: new Date().toISOString(),
+    }
+    addReadingEntry(goal.id, entry)
+    clearCurrentBook(goal.id)
+    setCompletingBook(null)
+  }
+
+  function toggleSave(bookId) {
+    setSavedIds(prev =>
+      prev.includes(bookId) ? prev.filter(id => id !== bookId) : [...prev, bookId]
+    )
+  }
+
+  const filters = [
+    { id: 'foryou',      label: '✨ For You' },
+    { id: 'bestsellers', label: '🏆 Best Sellers' },
+    { id: 'all',         label: 'All' },
+    ...GENRES.map(g => ({ id: g.id, label: g.label })),
+  ]
+
+  const displayedBooks = getFilteredBooks()
+
+  const forYouGenres = useMemo(() => {
+    const gc = {}
+    history.forEach(e => e.genres?.forEach(g => { gc[g] = (gc[g] || 0) + 1 }))
+    return Object.entries(gc).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([g]) => g)
+  }, [history])
+
+  return (
+    <div>
+      {/* Currently reading */}
+      {currentBook ? (
+        <div className="mb-4">
+          <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-2">📖 Currently reading</p>
+          <div className="bg-gradient-to-r from-brand-primary/8 to-blue-50 rounded-2xl p-3.5 flex gap-3 items-center border border-brand-primary/20">
+            <span className="text-3xl flex-shrink-0">{currentBook.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-wide text-brand-primary mb-0.5">In progress</p>
+              <p className="text-[13px] font-bold text-text-pri">{currentBook.title}</p>
+              <p className="text-[11px] text-text-sec">{currentBook.author}</p>
+            </div>
+            <button onClick={handleDone}
+              className="flex-shrink-0 text-[12px] font-bold px-3 py-2 rounded-xl bg-brand-accent text-white">
+              ✓ Done!
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4 p-3 rounded-2xl bg-bg-surface border border-border/50 text-center">
+          <p className="text-xs text-text-mut">No book in progress — pick one below 👇</p>
+        </div>
+      )}
+
+      {/* Suggestions header + search */}
+      <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-2">💡 What to read next</p>
+
+      <div className="relative mb-3">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base">🔍</span>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search title or author..."
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-bg-surface text-base text-text-pri placeholder:text-text-mut focus:outline-none focus:border-brand-primary"
+        />
+      </div>
+
+      {/* Genre filter pills */}
+      {!search && (
+        <div className="flex gap-2 overflow-x-auto pb-1 mb-3 scrollbar-hide">
+          {filters.map(f => (
+            <button key={f.id} onClick={() => setActiveFilter(f.id)}
+              className={`flex-shrink-0 px-3 py-1.5 rounded-pill text-[11px] font-bold border transition-all
+                ${activeFilter === f.id
+                  ? 'bg-brand-primary text-white border-brand-primary'
+                  : 'bg-bg-surface text-brand-primary border-brand-primary/20'}`}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* For You explanation */}
+      {activeFilter === 'foryou' && !search && forYouGenres.length > 0 && (
+        <p className="text-[10px] text-brand-primary font-semibold mb-2 pl-1">
+          ✨ Based on your reading: {forYouGenres.join(', ')}
+        </p>
+      )}
+      {activeFilter === 'foryou' && !search && forYouGenres.length === 0 && (
+        <p className="text-[10px] text-text-mut mb-2 pl-1">
+          Read a few books and we'll personalise these for you
+        </p>
+      )}
+
+      {/* Book list */}
+      <div className="max-h-[320px] overflow-y-auto">
+        {displayedBooks.length === 0 ? (
+          <p className="text-sm text-text-mut text-center py-8">
+            {search ? `No books matching "${search}"` : 'You have read everything here! 🎉'}
+          </p>
+        ) : (
+          displayedBooks.map(book => (
+            <BookCard
+              key={book.id}
+              book={book}
+              onStart={() => handleStart(book)}
+              onSave={() => toggleSave(book.id)}
+              isSaved={savedIds.includes(book.id)}
+            />
+          ))
+        )}
+      </div>
+
+      {/* Reading history */}
+      {history.length > 0 && (
+        <>
+          <div className="border-t border-border mt-4 pt-4">
+            <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-3">
+              📚 My reading history ({history.length} book{history.length !== 1 ? 's' : ''})
+            </p>
+            {history.map((entry, i) => (
+              <div key={i} className="flex gap-3 py-2.5 border-b border-border/50 last:border-0 items-start">
+                <span className="text-xl flex-shrink-0">{entry.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-bold text-text-pri">{entry.title}</p>
+                  <p className="text-[11px] text-text-sec">{entry.author}</p>
+                  {entry.note && (
+                    <p className="text-[11px] text-text-mut mt-1 italic">💡 {entry.note}</p>
+                  )}
+                </div>
+                <span className="text-[10px] text-text-mut flex-shrink-0">
+                  {new Date(entry.completedAt).toLocaleDateString('default', { month: 'short', day: 'numeric' })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Completion modal */}
+      <AnimatePresence>
+        {completingBook && (
+          <BookCompleteModal
+            goal={goal}
+            book={completingBook}
+            onSave={handleSaveComplete}
+            onSkip={() => { clearCurrentBook(goal.id); setCompletingBook(null) }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

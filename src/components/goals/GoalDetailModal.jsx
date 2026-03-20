@@ -3,6 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useStore, getWeekStartDay } from '../../store/useStore'
 import { CATEGORIES } from '../../lib/constants'
 import { getSimulatedDate } from '../../lib/simulatedDate'
+import BookPanel from './BookPanel'
+
+// Detect if a goal is a "reading" goal based on name keywords
+function isBookGoal(goal) {
+  if (!goal) return false
+  const name = (goal.name || '').toLowerCase()
+  return ['book', 'read', 'reading'].some(k => name.includes(k))
+}
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 function localISO(date) {
@@ -440,6 +448,14 @@ export default function GoalDetailModal({ goal, open, onClose }) {
 
                   {planContent}
 
+                  <div className="border-t border-border my-4" />
+                </>
+              )}
+
+              {/* Book Panel — for reading goals */}
+              {isBookGoal(goal) && (
+                <>
+                  <BookPanel goal={goal} />
                   <div className="border-t border-border my-4" />
                 </>
               )}
