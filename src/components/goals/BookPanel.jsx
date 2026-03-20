@@ -1,11 +1,20 @@
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { BOOKS, GENRES, GENRE_COLORS, getPersonalizedBooks, getBestsellers, getBooksByGenre } from '../../lib/bookData'
+import {
+  BOOKS, BOOKS_IL, GENRES, GENRE_COLORS,
+  getPersonalizedBooks, getBestsellers, getLocalBestsellers, getBooksByGenre,
+  getBuyUrl, getStoreName, getStoreEmoji,
+} from '../../lib/bookData'
 import { useStore } from '../../store/useStore'
-import { getSimulatedDate } from '../../lib/simulatedDate'
+
+// Detect Israel from workdayPreset
+function useIsIsrael() {
+  const workdayPreset = useStore(s => s.workdayPreset)
+  return workdayPreset === 'sun-thu'
+}
 
 // ─── Book Completion Modal ────────────────────────────────────────────────────
-function BookCompleteModal({ goal, book, onSave, onSkip }) {
+function BookCompleteModal({ goal, book, isIsrael, onSave, onSkip }) {
   const [note, setNote] = useState('')
 
   return (
@@ -28,10 +37,18 @@ function BookCompleteModal({ goal, book, onSave, onSkip }) {
         {/* Book card */}
         <div className="bg-bg-surface rounded-2xl p-4 flex gap-3 items-center mb-5 border border-border">
           <span className="text-4xl flex-shrink-0">{book.emoji}</span>
-          <div>
+          <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-text-pri">{book.title}</p>
             <p className="text-xs text-text-sec mt-0.5">{book.author}</p>
           </div>
+          <a
+            href={getBuyUrl(book, isIsrael)}
+            target="_blank" rel="noopener noreferrer"
+            className="flex-shrink-0 text-[11px] font-bold px-3 py-1.5 rounded-xl bg-bg-surface border border-border text-text-sec"
+            onClick={e => e.stopPropagation()}
+          >
+            {getStoreEmoji(isIsrael)} {getStoreName(isIsrael)}
+          </a>
         </div>
 
         <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-2">Your takeaway</p>
@@ -69,23 +86,51 @@ function GenreTag({ genre }) {
 }
 
 // ─── Book Card ────────────────────────────────────────────────────────────────
-function BookCard({ book, onStart, onSave, isSaved }) {
+function BookCard({ book, isIsrael, onStart, onSave, isSaved }) {
+  const buyUrl = getBuyUrl(book, isIsrael)
+  const storeName = getStoreName(isIsrael)
+  const storeEmoji = getStoreEmoji(isIsrael)
+
   return (
     <div className="flex gap-3 p-3 rounded-2xl border border-border bg-bg-card mb-2">
-      <div className="w-11 h-[58px] rounded-lg flex items-center justify-center text-2xl flex-shrink-0 bg-bg-surface">
+      {/* Book cover — tappable → store link */}
+      <a
+        href={buyUrl} target="_blank" rel="noopener noreferrer"
+        className="w-11 h-[58px] rounded-lg flex items-center justify-center text-2xl flex-shrink-0 bg-bg-surface active:opacity-70"
+        title={`View on ${storeName}`}
+      >
         {book.emoji}
-      </div>
+      </a>
+
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-bold text-text-pri leading-snug">{book.title}</p>
+        {/* Title — also tappable → store link */}
+        <a
+          href={buyUrl} target="_blank" rel="noopener noreferrer"
+          className="text-[13px] font-bold text-text-pri leading-snug hover:text-brand-primary transition-colors flex items-center gap-1"
+        >
+          {book.title}
+          <span className="text-[9px] text-text-mut opacity-60">↗</span>
+        </a>
         <p className="text-[11px] text-text-sec mt-0.5">{book.author}</p>
         {book.desc && <p className="text-[11px] text-text-mut mt-1.5 leading-relaxed line-clamp-2">{book.desc}</p>}
-        <div className="flex gap-1 mt-1.5 flex-wrap">
+        <div className="flex gap-1 mt-1.5 flex-wrap items-center">
           {book.genres.map(g => <GenreTag key={g} genre={g} />)}
           {book.bestseller && (
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill bg-orange-100 text-orange-600">🏆 Bestseller</span>
           )}
+          {book.local && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill bg-blue-50 text-blue-600">🇮🇱 Local</span>
+          )}
         </div>
+        {/* Store link row */}
+        <a
+          href={buyUrl} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 mt-2 text-[10px] font-bold text-brand-primary opacity-70 hover:opacity-100 transition-opacity"
+        >
+          {storeEmoji} View on {storeName} ↗
+        </a>
       </div>
+
       <div className="flex flex-col gap-1.5 flex-shrink-0 justify-start pt-0.5">
         <button onClick={onStart}
           className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-brand-primary text-white whitespace-nowrap">
@@ -93,7 +138,7 @@ function BookCard({ book, onStart, onSave, isSaved }) {
         </button>
         <button onClick={onSave}
           className={`text-[11px] font-bold px-3 py-1.5 rounded-xl whitespace-nowrap transition-all
-            ${isSaved ? 'bg-brand-accent/15 text-green-700' : 'bg-bg-surface text-brand-primary border border-brand-primary/30'}`}>
+            ${isSaved ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-bg-surface text-brand-primary border border-brand-primary/30'}`}>
           {isSaved ? '✓ Saved' : '🔖 Save'}
         </button>
       </div>
@@ -107,6 +152,7 @@ export default function BookPanel({ goal }) {
     getReadingHistory, addReadingEntry,
     getCurrentBook, setCurrentBook, clearCurrentBook,
   } = useStore()
+  const isIsrael = useIsIsrael()
 
   const [activeFilter, setActiveFilter] = useState('foryou')
   const [search, setSearch] = useState('')
@@ -117,23 +163,37 @@ export default function BookPanel({ goal }) {
   const readBookIds = history.map(e => e.bookId)
   const currentBook = getCurrentBook(goal.id)
 
-  const personalizedBooks = useMemo(() => getPersonalizedBooks(readBookIds), [readBookIds.join(',')])
-  const bestsellerBooks = useMemo(() => getBestsellers(readBookIds), [readBookIds.join(',')])
+  const allBooks = isIsrael ? [...BOOKS, ...BOOKS_IL] : BOOKS
+
+  const personalizedBooks = useMemo(
+    () => getPersonalizedBooks(readBookIds, isIsrael),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [readBookIds.join(','), isIsrael]
+  )
+  const bestsellerBooks = useMemo(
+    () => getBestsellers(readBookIds),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [readBookIds.join(',')]
+  )
+  const localBooks = useMemo(
+    () => getLocalBestsellers(readBookIds),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [readBookIds.join(',')]
+  )
 
   function getFilteredBooks() {
-    let books
     if (search.trim()) {
       const q = search.toLowerCase()
-      return BOOKS.filter(b =>
+      return allBooks.filter(b =>
         !readBookIds.includes(b.id) &&
         (b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q))
       )
     }
-    if (activeFilter === 'foryou') books = personalizedBooks
-    else if (activeFilter === 'bestsellers') books = bestsellerBooks
-    else if (activeFilter === 'all') books = BOOKS.filter(b => !readBookIds.includes(b.id))
-    else books = getBooksByGenre(activeFilter, readBookIds)
-    return books
+    if (activeFilter === 'foryou')      return personalizedBooks
+    if (activeFilter === 'bestsellers') return bestsellerBooks
+    if (activeFilter === 'local')       return localBooks
+    if (activeFilter === 'all')         return allBooks.filter(b => !readBookIds.includes(b.id))
+    return getBooksByGenre(activeFilter, readBookIds, isIsrael)
   }
 
   function handleStart(book) {
@@ -169,6 +229,7 @@ export default function BookPanel({ goal }) {
   const filters = [
     { id: 'foryou',      label: '✨ For You' },
     { id: 'bestsellers', label: '🏆 Best Sellers' },
+    ...(isIsrael ? [{ id: 'local', label: '🇮🇱 מקומי' }] : []),
     { id: 'all',         label: 'All' },
     ...GENRES.map(g => ({ id: g.id, label: g.label })),
   ]
@@ -188,10 +249,22 @@ export default function BookPanel({ goal }) {
         <div className="mb-4">
           <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-2">📖 Currently reading</p>
           <div className="bg-gradient-to-r from-brand-primary/8 to-blue-50 rounded-2xl p-3.5 flex gap-3 items-center border border-brand-primary/20">
-            <span className="text-3xl flex-shrink-0">{currentBook.emoji}</span>
+            <a
+              href={getBuyUrl(currentBook, isIsrael)}
+              target="_blank" rel="noopener noreferrer"
+              className="text-3xl flex-shrink-0 active:opacity-70"
+            >
+              {currentBook.emoji}
+            </a>
             <div className="flex-1 min-w-0">
               <p className="text-[9px] font-bold uppercase tracking-wide text-brand-primary mb-0.5">In progress</p>
-              <p className="text-[13px] font-bold text-text-pri">{currentBook.title}</p>
+              <a
+                href={getBuyUrl(currentBook, isIsrael)}
+                target="_blank" rel="noopener noreferrer"
+                className="text-[13px] font-bold text-text-pri hover:text-brand-primary transition-colors"
+              >
+                {currentBook.title} ↗
+              </a>
               <p className="text-[11px] text-text-sec">{currentBook.author}</p>
             </div>
             <button onClick={handleDone}
@@ -234,29 +307,31 @@ export default function BookPanel({ goal }) {
         </div>
       )}
 
-      {/* For You explanation */}
-      {activeFilter === 'foryou' && !search && forYouGenres.length > 0 && (
-        <p className="text-[10px] text-brand-primary font-semibold mb-2 pl-1">
-          ✨ Based on your reading: {forYouGenres.join(', ')}
-        </p>
+      {/* Contextual subtitle */}
+      {!search && activeFilter === 'foryou' && (
+        forYouGenres.length > 0
+          ? <p className="text-[10px] text-brand-primary font-semibold mb-2 pl-1">✨ Based on your reading: {forYouGenres.join(', ')}</p>
+          : <p className="text-[10px] text-text-mut mb-2 pl-1">Read a few books and we will personalise these for you</p>
       )}
-      {activeFilter === 'foryou' && !search && forYouGenres.length === 0 && (
-        <p className="text-[10px] text-text-mut mb-2 pl-1">
-          Read a few books and we'll personalise these for you
-        </p>
+      {!search && activeFilter === 'local' && (
+        <p className="text-[10px] text-blue-600 font-semibold mb-2 pl-1">🇮🇱 Top books in Israel — Israeli authors + local favourites</p>
+      )}
+      {!search && activeFilter === 'bestsellers' && (
+        <p className="text-[10px] text-orange-500 font-semibold mb-2 pl-1">🏆 All-time international bestsellers</p>
       )}
 
       {/* Book list */}
       <div className="max-h-[320px] overflow-y-auto">
         {displayedBooks.length === 0 ? (
           <p className="text-sm text-text-mut text-center py-8">
-            {search ? `No books matching "${search}"` : 'You have read everything here! 🎉'}
+            {search ? `No books matching "${search}"` : 'All caught up! Nothing left to suggest here.'}
           </p>
         ) : (
           displayedBooks.map(book => (
             <BookCard
               key={book.id}
               book={book}
+              isIsrael={isIsrael}
               onStart={() => handleStart(book)}
               onSave={() => toggleSave(book.id)}
               isSaved={savedIds.includes(book.id)}
@@ -267,28 +342,26 @@ export default function BookPanel({ goal }) {
 
       {/* Reading history */}
       {history.length > 0 && (
-        <>
-          <div className="border-t border-border mt-4 pt-4">
-            <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-3">
-              📚 My reading history ({history.length} book{history.length !== 1 ? 's' : ''})
-            </p>
-            {history.map((entry, i) => (
-              <div key={i} className="flex gap-3 py-2.5 border-b border-border/50 last:border-0 items-start">
-                <span className="text-xl flex-shrink-0">{entry.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-bold text-text-pri">{entry.title}</p>
-                  <p className="text-[11px] text-text-sec">{entry.author}</p>
-                  {entry.note && (
-                    <p className="text-[11px] text-text-mut mt-1 italic">💡 {entry.note}</p>
-                  )}
-                </div>
-                <span className="text-[10px] text-text-mut flex-shrink-0">
-                  {new Date(entry.completedAt).toLocaleDateString('default', { month: 'short', day: 'numeric' })}
-                </span>
+        <div className="border-t border-border mt-4 pt-4">
+          <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-3">
+            📚 My reading history ({history.length} book{history.length !== 1 ? 's' : ''})
+          </p>
+          {history.map((entry, i) => (
+            <div key={i} className="flex gap-3 py-2.5 border-b border-border/50 last:border-0 items-start">
+              <span className="text-xl flex-shrink-0">{entry.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-bold text-text-pri">{entry.title}</p>
+                <p className="text-[11px] text-text-sec">{entry.author}</p>
+                {entry.note && (
+                  <p className="text-[11px] text-text-mut mt-1 italic">💡 {entry.note}</p>
+                )}
               </div>
-            ))}
-          </div>
-        </>
+              <span className="text-[10px] text-text-mut flex-shrink-0">
+                {new Date(entry.completedAt).toLocaleDateString('default', { month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Completion modal */}
@@ -297,6 +370,7 @@ export default function BookPanel({ goal }) {
           <BookCompleteModal
             goal={goal}
             book={completingBook}
+            isIsrael={isIsrael}
             onSave={handleSaveComplete}
             onSkip={() => { clearCurrentBook(goal.id); setCompletingBook(null) }}
           />
