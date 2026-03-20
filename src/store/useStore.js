@@ -245,6 +245,7 @@ export const useStore = create(
       // Clear all user data on sign out
       clearStore: () => set({
         goals: [], completions: {}, journalEntries: [],
+        weeklySchedules: {}, monthlySchedules: {}, weeklyIntentions: {},
         onboardingComplete: false, toast: null, activeTab: 'home',
       }),
     }),

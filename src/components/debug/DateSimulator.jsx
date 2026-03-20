@@ -196,6 +196,7 @@ export default function DateSimulator({ onDateChange }) {
   const [seedStatus, setSeedStatus] = useState(null)
 
   const { goals, workdayPreset, addGoal, clearStore } = useStore()
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
   const hasSeedData = goals.some(g => g.id?.startsWith('test_'))
 
   function applyDate(iso) {
@@ -394,6 +395,32 @@ export default function DateSimulator({ onDateChange }) {
               {!hasSeedData && (
                 <p className="text-center text-[10px] text-text-mut mt-1">No test data loaded</p>
               )}
+
+              <div className="border-t border-border mt-4 pt-4">
+                <p className="text-[10px] font-bold text-text-mut uppercase tracking-widest mb-2">Danger Zone</p>
+                {!showResetConfirm ? (
+                  <button onClick={() => setShowResetConfirm(true)}
+                    className="w-full py-2 rounded-xl text-xs font-semibold text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 transition-all">
+                    🔴 Reset All Data
+                  </button>
+                ) : (
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                    <p className="text-[11px] font-semibold text-red-600 text-center mb-3">
+                      Wipe everything — goals, completions, schedules, intentions?
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => setShowResetConfirm(false)}
+                        className="flex-1 py-2 rounded-xl text-xs font-semibold border border-border bg-white text-text-sec">
+                        Cancel
+                      </button>
+                      <button onClick={() => { clearStore(); setShowResetConfirm(false); setSeedStatus('cleared'); setTimeout(() => setSeedStatus(null), 2000); onDateChange?.() }}
+                        className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-all">
+                        Yes, wipe it
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>
