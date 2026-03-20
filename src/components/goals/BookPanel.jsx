@@ -1,10 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   BOOKS, BOOKS_IL, GENRES, GENRE_COLORS,
   getPersonalizedBooks, getBestsellers, getLocalBestsellers, getBooksByGenre,
   getBuyUrl, getStoreName, getStoreEmoji,
 } from '../../lib/bookData'
+import { fetchNYTBestsellers, hasNYTKey } from '../../lib/nytApi'
 import { useStore } from '../../store/useStore'
 
 // Detect Israel from workdayPreset
@@ -74,6 +75,29 @@ function BookCompleteModal({ goal, book, isIsrael, onSave, onSkip }) {
   )
 }
 
+// ─── Book title display (Hebrew + English subtitle) ──────────────────────────
+function BookTitle({ book, url }) {
+  const isHebrew = /[\u0590-\u05FF]/.test(book.title)
+  const content = (
+    <span>
+      <span dir={isHebrew ? 'rtl' : 'ltr'} className="block leading-snug">{book.title}</span>
+      {book.titleEn && (
+        <span className="text-[10px] text-text-mut font-normal">{book.titleEn}</span>
+      )}
+    </span>
+  )
+  if (url) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer"
+        className="text-[13px] font-bold text-text-pri hover:text-brand-primary transition-colors flex flex-col gap-0.5">
+        {content}
+        <span className="text-[9px] text-text-mut opacity-60">↗</span>
+      </a>
+    )
+  }
+  return <p className="text-[13px] font-bold text-text-pri flex flex-col gap-0.5">{content}</p>
+}
+
 // ─── Genre tag ────────────────────────────────────────────────────────────────
 function GenreTag({ genre }) {
   const colors = GENRE_COLORS[genre] || { bg: '#F5F4FF', text: '#6C63FF' }
@@ -87,30 +111,27 @@ function GenreTag({ genre }) {
 
 // ─── Book Card ────────────────────────────────────────────────────────────────
 function BookCard({ book, isIsrael, onStart, onSave, isSaved }) {
-  const buyUrl = getBuyUrl(book, isIsrael)
-  const storeName = getStoreName(isIsrael)
-  const storeEmoji = getStoreEmoji(isIsrael)
+  // NYT books have a direct amazonUrl; local Israeli books use Steimatzky
+  const buyUrl = book.amazonUrl || getBuyUrl(book, isIsrael && book.local)
+  const storeName = book.amazonUrl ? 'Amazon' : getStoreName(isIsrael && book.local)
+  const storeEmoji = book.amazonUrl ? '🛒' : getStoreEmoji(isIsrael && book.local)
 
   return (
     <div className="flex gap-3 p-3 rounded-2xl border border-border bg-bg-card mb-2">
       {/* Book cover — tappable → store link */}
       <a
         href={buyUrl} target="_blank" rel="noopener noreferrer"
-        className="w-11 h-[58px] rounded-lg flex items-center justify-center text-2xl flex-shrink-0 bg-bg-surface active:opacity-70"
+        className="w-11 h-[58px] rounded-lg flex items-center justify-center text-2xl flex-shrink-0 bg-bg-surface active:opacity-70 overflow-hidden"
         title={`View on ${storeName}`}
       >
-        {book.emoji}
+        {book.cover
+          ? <img src={book.cover} alt={book.title} className="w-full h-full object-cover rounded-lg" />
+          : book.emoji
+        }
       </a>
 
       <div className="flex-1 min-w-0">
-        {/* Title — also tappable → store link */}
-        <a
-          href={buyUrl} target="_blank" rel="noopener noreferrer"
-          className="text-[13px] font-bold text-text-pri leading-snug hover:text-brand-primary transition-colors flex items-center gap-1"
-        >
-          {book.title}
-          <span className="text-[9px] text-text-mut opacity-60">↗</span>
-        </a>
+        <BookTitle book={book} url={buyUrl} />
         <p className="text-[11px] text-text-sec mt-0.5">{book.author}</p>
         {book.desc && <p className="text-[11px] text-text-mut mt-1.5 leading-relaxed line-clamp-2">{book.desc}</p>}
         <div className="flex gap-1 mt-1.5 flex-wrap items-center">
@@ -120,6 +141,12 @@ function BookCard({ book, isIsrael, onStart, onSave, isSaved }) {
           )}
           {book.local && (
             <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill bg-blue-50 text-blue-600">🇮🇱 Local</span>
+          )}
+          {book.nyt && book.nytRank && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill bg-orange-50 text-orange-600">NYT #{book.nytRank}</span>
+          )}
+          {book.nytWeeks > 0 && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-pill bg-yellow-50 text-yellow-700">{book.nytWeeks}w on list</span>
           )}
         </div>
         {/* Store link row */}
@@ -158,12 +185,24 @@ export default function BookPanel({ goal }) {
   const [search, setSearch] = useState('')
   const [savedIds, setSavedIds] = useState([])
   const [completingBook, setCompletingBook] = useState(null)
+  const [nytBooks, setNytBooks] = useState([])
+  const [nytLoading, setNytLoading] = useState(false)
 
   const history = getReadingHistory(goal.id)
   const readBookIds = history.map(e => e.bookId)
   const currentBook = getCurrentBook(goal.id)
 
   const allBooks = isIsrael ? [...BOOKS, ...BOOKS_IL] : BOOKS
+
+  // Fetch NYT bestsellers when tab is active
+  useEffect(() => {
+    if (activeFilter !== 'bestsellers' || !hasNYTKey()) return
+    if (nytBooks.length > 0) return
+    setNytLoading(true)
+    fetchNYTBestsellers()
+      .then(books => setNytBooks(books || []))
+      .finally(() => setNytLoading(false))
+  }, [activeFilter])
 
   const personalizedBooks = useMemo(
     () => getPersonalizedBooks(readBookIds, isIsrael),
@@ -184,13 +223,18 @@ export default function BookPanel({ goal }) {
   function getFilteredBooks() {
     if (search.trim()) {
       const q = search.toLowerCase()
-      return allBooks.filter(b =>
+      const searchPool = [...allBooks, ...nytBooks]
+      return searchPool.filter(b =>
         !readBookIds.includes(b.id) &&
         (b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q))
       )
     }
     if (activeFilter === 'foryou')      return personalizedBooks
-    if (activeFilter === 'bestsellers') return bestsellerBooks
+    if (activeFilter === 'bestsellers') {
+      // NYT live data takes priority; fall back to static list
+      const nytUnread = nytBooks.filter(b => !readBookIds.includes(b.id))
+      return nytUnread.length > 0 ? nytUnread : bestsellerBooks
+    }
     if (activeFilter === 'local')       return localBooks
     if (activeFilter === 'all')         return allBooks.filter(b => !readBookIds.includes(b.id))
     return getBooksByGenre(activeFilter, readBookIds, isIsrael)
@@ -317,7 +361,11 @@ export default function BookPanel({ goal }) {
         <p className="text-[10px] text-blue-600 font-semibold mb-2 pl-1">🇮🇱 Top books in Israel — Israeli authors + local favourites</p>
       )}
       {!search && activeFilter === 'bestsellers' && (
-        <p className="text-[10px] text-orange-500 font-semibold mb-2 pl-1">🏆 All-time international bestsellers</p>
+        nytLoading
+          ? <p className="text-[10px] text-text-mut mb-2 pl-1 animate-pulse">⏳ Loading NYT Bestsellers list...</p>
+          : nytBooks.length > 0
+            ? <p className="text-[10px] text-orange-500 font-semibold mb-2 pl-1">🏆 NYT Bestsellers — updated weekly · {new Date().toLocaleDateString('en', { month: 'short', day: 'numeric' })}</p>
+            : <p className="text-[10px] text-orange-500 font-semibold mb-2 pl-1">🏆 All-time international bestsellers</p>
       )}
 
       {/* Book list */}
