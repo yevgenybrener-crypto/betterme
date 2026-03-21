@@ -66,7 +66,19 @@ async function fetchList(listId) {
 
 // Fetch all lists merged, deduplicated by title
 export async function fetchNYTBestsellers() {
-  const results = await Promise.all(LISTS.map(l => fetchList(l.id)))
+  // Fetch sequentially to avoid rate limits (NYT free tier: 10 req/min)
+  const results = []
+  for (const l of LISTS) {
+    try {
+      const books = await fetchList(l.id)
+      results.push(books)
+    } catch (e) {
+      console.warn(`NYT list ${l.id} failed:`, e)
+      results.push(null)
+    }
+    // Small delay between requests to stay within rate limits
+    await new Promise(r => setTimeout(r, 200))
+  }
   const seen = new Set()
   const merged = []
   results.forEach(list => {
@@ -79,6 +91,7 @@ export async function fetchNYTBestsellers() {
       }
     })
   })
+  console.log(`NYT: fetched ${merged.length} books`)
   return merged
 }
 

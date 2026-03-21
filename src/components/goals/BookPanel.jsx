@@ -194,15 +194,15 @@ export default function BookPanel({ goal }) {
 
   const allBooks = isIsrael ? [...BOOKS, ...BOOKS_IL] : BOOKS
 
-  // Fetch NYT bestsellers when tab is active
+  // Fetch NYT bestsellers eagerly on mount (so it's ready when user taps the tab)
   useEffect(() => {
-    if (activeFilter !== 'bestsellers' || !hasNYTKey()) return
-    if (nytBooks.length > 0) return
+    if (!hasNYTKey()) return
     setNytLoading(true)
     fetchNYTBestsellers()
-      .then(books => setNytBooks(books || []))
+      .then(books => { if (books && books.length > 0) setNytBooks(books) })
+      .catch(err => console.warn('NYT fetch failed:', err))
       .finally(() => setNytLoading(false))
-  }, [activeFilter])
+  }, [])
 
   const personalizedBooks = useMemo(
     () => getPersonalizedBooks(readBookIds, isIsrael),
