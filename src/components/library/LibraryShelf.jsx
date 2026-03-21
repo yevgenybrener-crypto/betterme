@@ -137,12 +137,11 @@ function Shelf({ typeId, entries }) {
               {entry.note && (
                 <p className="text-[11px] text-text-mut mt-1 italic line-clamp-1">"{entry.note}"</p>
               )}
-            </div>
-            <div className="flex-shrink-0 text-right">
-              <p className="text-[10px] text-text-mut">
-                {new Date(entry.completedAt).toLocaleDateString('default', { month: 'short', day: 'numeric' })}
+              <p className="text-[10px] text-text-mut mt-0.5">
+                {new Date(entry.completedAt).toLocaleDateString('default', { month: 'short', day: 'numeric', year: 'numeric' })}
               </p>
             </div>
+
           </button>
         ))}
       </div>
