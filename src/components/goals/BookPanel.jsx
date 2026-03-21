@@ -189,11 +189,12 @@ export default function BookPanel({ goal }) {
   const [nytLoading, setNytLoading] = useState(false)
   const [liveLocalBooks, setLiveLocalBooks] = useState([])
   const [localLoading, setLocalLoading] = useState(false)
-  // Google Books search
+  // Google Books search (used by Search tab + auto-fallback in main search)
   const [gbQuery, setGbQuery] = useState('')
   const [gbResults, setGbResults] = useState([])
   const [gbLoading, setGbLoading] = useState(false)
   const [gbSearched, setGbSearched] = useState(false)
+  const gbTimerRef = { current: null }
 
   const history = getReadingHistory(goal.id)
   const readBookIds = history.map(e => e.bookId)
@@ -220,6 +221,20 @@ export default function BookPanel({ goal }) {
       .catch(err => console.warn('Steimatzky fetch failed:', err))
       .finally(() => setLocalLoading(false))
   }, [isIsrael])
+
+  // Auto-search Google Books when main search has no local results
+  useEffect(() => {
+    if (!search.trim()) { setGbResults([]); setGbSearched(false); return }
+    const localHits = [...allBooks, ...nytBooks].filter(b =>
+      !readBookIds.includes(b.id) &&
+      (b.title.toLowerCase().includes(search.toLowerCase()) || b.author.toLowerCase().includes(search.toLowerCase()))
+    )
+    if (localHits.length > 0) { setGbResults([]); setGbSearched(false); return }
+    // No local results → debounce Google Books search
+    const timer = setTimeout(() => searchGoogleBooks(search), 600)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search])
 
   const personalizedBooks = useMemo(
     () => getPersonalizedBooks(readBookIds, isIsrael),
@@ -496,9 +511,25 @@ export default function BookPanel({ goal }) {
       /* Book list */
       <div className="max-h-[320px] overflow-y-auto">
         {displayedBooks.length === 0 ? (
-          <p className="text-sm text-text-mut text-center py-8">
-            {search ? `No books matching "${search}"` : 'All caught up! Nothing left to suggest here.'}
-          </p>
+          gbLoading ? (
+            <p className="text-sm text-text-mut text-center py-8">🔍 Searching all books...</p>
+          ) : gbResults.length > 0 ? (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-text-mut mb-2 px-1">
+                🌍 Results from Google Books
+              </p>
+              {gbResults.map(book => (
+                <BookCard key={book.id} book={book} isIsrael={isIsrael}
+                  onStart={() => handleStart(book)}
+                  onSave={() => toggleSave(book.id)}
+                  isSaved={savedIds.includes(book.id)} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-text-mut text-center py-8">
+              {search ? `No books found for "${search}"` : 'All caught up! Nothing left to suggest here.'}
+            </p>
+          )
         ) : (
           displayedBooks.map(book => (
             <BookCard
