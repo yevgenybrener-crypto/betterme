@@ -532,7 +532,17 @@ export default function BookPanel({ goal }) {
           <div className="max-h-[320px] overflow-y-auto">
             {gbLoading && <p className="text-sm text-text-mut text-center py-8">Searching...</p>}
             {!gbLoading && gbSearched && gbResults.length === 0 && (
-              <p className="text-sm text-text-mut text-center py-8">No results found. Try a different title or author.</p>
+              <div className="py-6 text-center">
+                <p className="text-sm text-text-mut mb-3">No results found</p>
+                <button
+                  onClick={() => {
+                    const manualBook = { id: `manual_${Date.now()}`, title: gbQuery, author: '', desc: '', cover: null, emoji: '📚', genres: [], bestseller: false, local: false, amazonUrl: `https://www.amazon.com/s?k=${encodeURIComponent(gbQuery)}`, buyUrl: null, source: 'manual' }
+                    handleStart(manualBook)
+                  }}
+                  className="text-xs font-bold px-4 py-2 rounded-xl bg-brand-primary/10 text-brand-primary border border-brand-primary/20">
+                  ✅ Log "{gbQuery}" anyway
+                </button>
+              </div>
             )}
             {!gbLoading && !gbSearched && (
               <p className="text-sm text-text-mut text-center py-8">🌍 Search millions of books from Google Books</p>
@@ -568,9 +578,45 @@ export default function BookPanel({ goal }) {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-text-mut text-center py-8">
-              {search ? `No books found for "${search}"` : 'All caught up! Nothing left to suggest here.'}
-            </p>
+            <div className="py-6 text-center">
+              {search ? (
+                <>
+                  <p className="text-sm text-text-mut mb-3">No results found for "{search}"</p>
+                  <div className="flex flex-col gap-2 items-center">
+                    <a href={`https://www.steimatzky.co.il/catalogsearch/result/?q=${encodeURIComponent(search)}`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-bold px-4 py-2 rounded-xl bg-blue-50 text-blue-600 border border-blue-200">
+                      🔍 Search on Steimatzky
+                    </a>
+                    <a href={`https://www.amazon.com/s?k=${encodeURIComponent(search)}&i=stripbooks`}
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-bold px-4 py-2 rounded-xl bg-orange-50 text-orange-600 border border-orange-200">
+                      🔍 Search on Amazon
+                    </a>
+                    <button
+                      onClick={() => {
+                        const manualBook = {
+                          id: `manual_${Date.now()}`,
+                          title: search,
+                          author: '',
+                          desc: '',
+                          cover: null,
+                          emoji: '📚',
+                          genres: [],
+                          bestseller: false, local: false,
+                          amazonUrl: `https://www.amazon.com/s?k=${encodeURIComponent(search)}`,
+                          buyUrl: null,
+                          source: 'manual',
+                        }
+                        handleStart(manualBook)
+                      }}
+                      className="text-xs font-bold px-4 py-2 rounded-xl bg-brand-primary/10 text-brand-primary border border-brand-primary/20">
+                      ✅ Log "{search}" anyway
+                    </button>
+                  </div>
+                </>
+              ) : 'All caught up! Nothing left to suggest here.'}
+            </div>
           )
         ) : (
           displayedBooks.map(book => (
