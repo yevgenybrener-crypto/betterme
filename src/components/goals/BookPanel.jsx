@@ -112,10 +112,10 @@ function GenreTag({ genre }) {
 
 // ─── Book Card ────────────────────────────────────────────────────────────────
 function BookCard({ book, isIsrael, onStart, onSave, isSaved }) {
-  // NYT books have a direct amazonUrl; local Israeli books use Steimatzky
-  const buyUrl = book.amazonUrl || getBuyUrl(book, isIsrael && book.local)
-  const storeName = book.amazonUrl ? 'Amazon' : getStoreName(isIsrael && book.local)
-  const storeEmoji = book.amazonUrl ? '🛒' : getStoreEmoji(isIsrael && book.local)
+  // Priority: direct product URL > amazonUrl > store search
+  const buyUrl = book.steimatzkyUrl || book.amazonUrl || getBuyUrl(book, isIsrael && book.local)
+  const storeName = book.steimatzkyUrl ? 'Steimatzky' : book.amazonUrl ? 'Amazon' : getStoreName(isIsrael && book.local)
+  const storeEmoji = book.steimatzkyUrl ? '🇮🇱' : book.amazonUrl ? '🛒' : getStoreEmoji(isIsrael && book.local)
 
   return (
     <div className="flex gap-3 p-3 rounded-2xl border border-border bg-bg-card mb-2">

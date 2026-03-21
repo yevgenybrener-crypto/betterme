@@ -5,34 +5,44 @@
 const STEIMATZKY_URL = 'https://www.steimatzky.co.il/ספרים/the_best_steimatzky'
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes'
 
-// Extract product titles + cover images from Steimatzky's page
+// Extract product titles + cover images + direct product URLs from Steimatzky's page
 function parseBooks(html) {
-  // Extract titles from datalayer
-  const productMatches = [...html.matchAll(/window\.idusDataLayer\.products\['(\d+)'\] = ({.*?});/gs)]
-  const productMap = {}
-  for (const [, pid, pjson] of productMatches) {
+  // Build a map from title → {cover, productUrl} using product-image-photo tags
+  // Image src: /cache/xxx/0/1/011981377-timestamp.jpg → ISBN 011981377
+  // Product URL: https://www.steimatzky.co.il/011981377
+  const imageMap = {}
+  const seen = new Set()
+  const imgMatches = [...html.matchAll(/<img[^>]+class="product-image-photo"[^>]+src="([^"]+)"[^>]+alt="([^"]+)"/g)]
+  for (const [, src, rawAlt] of imgMatches) {
+    const title = rawAlt.trim().replace(/\s+\d+$/, '') // strip trailing " 1"
+    if (seen.has(title)) continue
+    seen.add(title)
+    const isbnMatch = src.match(/\/(\d{9,13})-\d+\.jpg/)
+    const isbn = isbnMatch?.[1] || null
+    imageMap[title] = {
+      cover: src,
+      productUrl: isbn ? `https://www.steimatzky.co.il/${isbn}` : null,
+    }
+  }
+
+  // Extract titles + categories from datalayer
+  const productMatches = [...html.matchAll(/window\.idusDataLayer\.products\['\d+'\] = ({.*?});/gs)]
+  const books = []
+  const seenTitles = new Set()
+  for (const [, pjson] of productMatches) {
     try {
       const p = JSON.parse(pjson)
       const name = p.name || ''
       const category = p.dl_category || ''
-      if (!name) continue
+      if (!name || seenTitles.has(name)) continue
       if (category.includes('ילדים') || category.includes('פעוטות') || category.includes('נוער')) continue
-      productMap[name] = { id: `st_${pid}`, title: name, category, cover: null }
+      seenTitles.add(name)
+      const img = imageMap[name] || {}
+      books.push({ title: name, category, cover: img.cover || null, productUrl: img.productUrl || null })
     } catch {}
   }
 
-  // Extract cover images — match alt text to product titles
-  const imgMatches = [...html.matchAll(/<img[^>]+class="product-image-photo"[^>]+src="([^"]+)"[^>]+alt="([^"]+)"/g)]
-  const seen = new Set()
-  for (const [, src, alt] of imgMatches) {
-    const cleanAlt = alt.trim().replace(/\s+\d+$/, '') // strip trailing " 1" from alt
-    if (productMap[cleanAlt] && !seen.has(cleanAlt)) {
-      productMap[cleanAlt].cover = src
-      seen.add(cleanAlt)
-    }
-  }
-
-  return Object.values(productMap).slice(0, 20)
+  return books.slice(0, 20)
 }
 
 // Look up author via Google Books
@@ -85,17 +95,17 @@ export default async function handler(req, res) {
       rawBooks.slice(0, 15).map(async (book) => {
         const extra = await enrichWithAuthor(book.title)
         return {
-          id: book.id,
+          id: `st_${Buffer.from(book.title).toString('base64').slice(0, 8)}`,
           title: book.title,
           author: extra?.author || '',
           desc: extra?.desc || '',
-          // Steimatzky cover takes priority (higher resolution), fall back to Google Books
           cover: book.cover || extra?.cover || null,
           emoji: '📚',
           genres: [],
           bestseller: true,
           local: true,
-          steimatzkyUrl: `https://www.steimatzky.co.il/catalogsearch/result/?q=${encodeURIComponent(book.title)}`,
+          // Direct product page link — not search results
+          steimatzkyUrl: book.productUrl || `https://www.steimatzky.co.il/catalogsearch/result/?q=${encodeURIComponent(book.title)}`,
         }
       })
     )
