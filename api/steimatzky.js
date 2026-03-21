@@ -19,9 +19,15 @@ function parseBooks(html) {
     seen.add(title)
     const isbnMatch = src.match(/\/(\d{9,13})-\d+\.jpg/)
     const isbn = isbnMatch?.[1] || null
+    const proxiedCover = `/api/cover-proxy?url=${encodeURIComponent(src)}`
     imageMap[title] = {
-      cover: src,
+      cover: proxiedCover,
       productUrl: isbn ? `https://www.steimatzky.co.il/${isbn}` : null,
+    }
+    // Also index by first 8 chars for fuzzy matching of truncated alt texts
+    const shortKey = title.slice(0, 8)
+    if (!imageMap[shortKey]) {
+      imageMap[shortKey] = imageMap[title]
     }
   }
 
@@ -37,7 +43,8 @@ function parseBooks(html) {
       if (!name || seenTitles.has(name)) continue
       if (category.includes('ילדים') || category.includes('פעוטות') || category.includes('נוער')) continue
       seenTitles.add(name)
-      const img = imageMap[name] || {}
+      // Exact match first, then fuzzy (first 8 chars) for truncated alt texts
+      const img = imageMap[name] || imageMap[name.slice(0, 8)] || {}
       books.push({ title: name, category, cover: img.cover || null, productUrl: img.productUrl || null })
     } catch {}
   }
