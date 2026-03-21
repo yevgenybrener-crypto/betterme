@@ -1,71 +1,69 @@
 // ─── HealthKit Integration ────────────────────────────────────────────────────
-// Uses @perfood/capacitor-healthkit to read workouts and activity data.
+// Uses capacitor-health (supports Capacitor 8, iOS + Android Health Connect)
 // Falls back gracefully on web (no-op).
 
 import { Capacitor } from '@capacitor/core'
 
-let HealthKit = null
+let Health = null
 
-// Lazy-load the native plugin only on iOS
 async function getPlugin() {
   if (!Capacitor.isNativePlatform()) return null
-  if (HealthKit) return HealthKit
+  if (Health) return Health
   try {
-    const mod = await import('@perfood/capacitor-healthkit')
-    HealthKit = mod.CapacitorHealthkit
-    return HealthKit
+    const mod = await import('capacitor-health')
+    Health = mod.Health
+    return Health
   } catch { return null }
 }
 
-export const isHealthKitAvailable = () =>
-  Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios'
+export const isHealthKitAvailable = () => Capacitor.isNativePlatform()
+export const isIOS = () => Capacitor.getPlatform() === 'ios'
 
 // ─── Permission request ───────────────────────────────────────────────────────
 export async function requestHealthKitPermissions() {
   const hk = await getPlugin()
   if (!hk) return false
   try {
-    await hk.requestAuthorization({
-      all: [],
-      read: [
-        'workouts',
-        'steps',
-        'distance',
-        'calories',
-        'heart_rate',
-        'sleep_analysis',
-        'mindful_session',
+    const available = await hk.isHealthAvailable()
+    if (!available.available) return false
+    await hk.requestHealthPermissions({
+      permissions: [
+        'READ_WORKOUTS',
+        'READ_STEPS',
+        'READ_DISTANCE',
+        'READ_ACTIVE_CALORIES',
+        'READ_HEART_RATE',
+        'READ_MINDFULNESS',
       ],
-      write: [],
     })
     return true
   } catch (e) {
-    console.warn('HealthKit permission error:', e)
+    console.warn('Health permission error:', e)
     return false
   }
 }
 
 // ─── Workout type → goal keyword mapping ─────────────────────────────────────
 const WORKOUT_KEYWORDS = {
-  HKWorkoutActivityTypeRunning:       ['run', 'running', 'jog'],
-  HKWorkoutActivityTypeWalking:       ['walk', 'walking', 'steps'],
-  HKWorkoutActivityTypeCycling:       ['bike', 'cycling', 'cycle', 'bicycle'],
-  HKWorkoutActivityTypeSwimming:      ['swim', 'swimming'],
-  HKWorkoutActivityTypeYoga:          ['yoga'],
-  HKWorkoutActivityTypeFunctionalStrengthTraining: ['gym', 'workout', 'weights', 'strength', 'lift'],
-  HKWorkoutActivityTypeTraditionalStrengthTraining: ['gym', 'workout', 'weights', 'strength', 'lift'],
-  HKWorkoutActivityTypeHighIntensityIntervalTraining: ['hiit', 'workout', 'gym'],
-  HKWorkoutActivityTypeMindAndBody:   ['meditat', 'mindful', 'breathe'],
-  HKWorkoutActivityTypeSoccer:        ['soccer', 'football'],
-  HKWorkoutActivityTypeBasketball:    ['basketball'],
-  HKWorkoutActivityTypeTennis:        ['tennis'],
-  HKWorkoutActivityTypeOther:         ['workout', 'exercise', 'sport'],
+  RUNNING:          ['run', 'running', 'jog'],
+  WALKING:          ['walk', 'walking', 'steps'],
+  CYCLING:          ['bike', 'cycling', 'cycle', 'bicycle'],
+  SWIMMING:         ['swim', 'swimming'],
+  YOGA:             ['yoga'],
+  FUNCTIONAL_STRENGTH_TRAINING: ['gym', 'workout', 'weights', 'strength', 'lift'],
+  TRADITIONAL_STRENGTH_TRAINING: ['gym', 'workout', 'weights', 'strength', 'lift'],
+  HIGH_INTENSITY_INTERVAL_TRAINING: ['hiit', 'workout', 'gym'],
+  MIND_AND_BODY:    ['meditat', 'mindful', 'breathe'],
+  SOCCER:           ['soccer', 'football'],
+  BASKETBALL:       ['basketball'],
+  TENNIS:           ['tennis'],
+  OTHER:            ['workout', 'exercise', 'sport', 'training'],
 }
 
-// Check if a goal name matches a workout type
 export function goalMatchesWorkout(goalName, workoutType) {
   const name = (goalName || '').toLowerCase()
-  const keywords = WORKOUT_KEYWORDS[workoutType] || []
+  const keywords = WORKOUT_KEYWORDS[workoutType] ||
+    WORKOUT_KEYWORDS[workoutType?.replace('HKWorkoutActivityType', '').toUpperCase()] || []
   return keywords.some(k => name.includes(k))
 }
 
@@ -73,19 +71,16 @@ export function goalMatchesWorkout(goalName, workoutType) {
 export async function getTodayWorkouts() {
   const hk = await getPlugin()
   if (!hk) return []
-
   const now = new Date()
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
   try {
     const result = await hk.queryWorkouts({
       startDate: startOfDay.toISOString(),
       endDate: now.toISOString(),
-      limit: 20,
     })
     return result?.workouts || []
   } catch (e) {
-    console.warn('HealthKit workout query error:', e)
+    console.warn('Health workout query error:', e)
     return []
   }
 }
@@ -94,26 +89,23 @@ export async function getTodayWorkouts() {
 export async function getTodaySteps() {
   const hk = await getPlugin()
   if (!hk) return null
-
   const now = new Date()
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
   try {
-    const result = await hk.queryHKitSampleType({
-      sampleName: 'steps',
+    const result = await hk.queryAggregated({
       startDate: startOfDay.toISOString(),
       endDate: now.toISOString(),
-      limit: 0,
+      dataType: 'STEPS',
+      bucket: 'DAY',
     })
-    const total = (result?.resultData || []).reduce((s, r) => s + (r.quantity || 0), 0)
-    return Math.round(total)
+    return result?.aggregatedData?.[0]?.value ?? null
   } catch (e) {
-    console.warn('HealthKit steps query error:', e)
+    console.warn('Health steps query error:', e)
     return null
   }
 }
 
-// ─── Main sync: returns matched goal IDs + workout details ───────────────────
+// ─── Main sync ────────────────────────────────────────────────────────────────
 export async function syncHealthKitToGoals(goals = []) {
   if (!isHealthKitAvailable()) return { matched: [], workouts: [], steps: null }
 
@@ -121,21 +113,21 @@ export async function syncHealthKitToGoals(goals = []) {
 
   const matched = []
   for (const goal of goals) {
-    if (goal.frequency !== 'daily' && goal.frequency !== 'weekly') continue
     for (const workout of workouts) {
-      if (goalMatchesWorkout(goal.name, workout.workoutActivityType)) {
+      const wType = workout.workoutType || workout.type || ''
+      if (goalMatchesWorkout(goal.name, wType)) {
         matched.push({
           goalId: goal.id,
           goalName: goal.name,
           workout: {
-            type: workout.workoutActivityType,
-            duration: Math.round((workout.duration || 0) / 60), // minutes
-            distance: workout.totalDistance ? Math.round(workout.totalDistance * 10) / 10 : null,
-            calories: workout.totalEnergyBurned ? Math.round(workout.totalEnergyBurned) : null,
+            type: wType,
+            duration: workout.duration ? Math.round(workout.duration / 60) : null,
+            distance: workout.distance ? Math.round(workout.distance * 10) / 10 : null,
+            calories: workout.calories ? Math.round(workout.calories) : null,
             startDate: workout.startDate,
           },
         })
-        break // one match per goal
+        break
       }
     }
   }
