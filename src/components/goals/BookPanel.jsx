@@ -228,10 +228,11 @@ export default function BookPanel({ goal }) {
     setGbLoading(true)
     setGbSearched(true)
     try {
-      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=15&langRestrict=&printType=books`
-      const res = await fetch(url)
-      const data = await res.json()
-      const books = (data.items || []).map(item => {
+      // Try Google Books first
+      const gbUrl = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=10&printType=books`
+      const gbRes = await fetch(gbUrl)
+      const gbData = await gbRes.json()
+      let books = (gbData.items || []).map(item => {
         const info = item.volumeInfo || {}
         const isbn = info.industryIdentifiers?.find(i => i.type === 'ISBN_13')?.identifier
           || info.industryIdentifiers?.find(i => i.type === 'ISBN_10')?.identifier
@@ -243,13 +244,39 @@ export default function BookPanel({ goal }) {
           cover: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
           emoji: '📚',
           genres: (info.categories || []).map(c => c.toLowerCase().split(' / ')[0]).slice(0, 2),
-          bestseller: false,
-          local: false,
+          bestseller: false, local: false,
           amazonUrl: isbn ? `https://www.amazon.com/dp/${isbn}` : `https://www.amazon.com/s?k=${encodeURIComponent(info.title)}`,
           buyUrl: isbn ? `https://www.amazon.com/dp/${isbn}` : null,
           source: 'google',
         }
       })
+
+      // Fallback to Open Library if Google Books returned nothing (good for Hebrew/international books)
+      if (books.length === 0) {
+        const olUrl = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=key,title,author_name,isbn,cover_i,subject&limit=10`
+        const olRes = await fetch(olUrl)
+        const olData = await olRes.json()
+        books = (olData.docs || []).slice(0, 10).map((doc, i) => {
+          const isbn = doc.isbn?.[0] || null
+          const cover = doc.cover_i
+            ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-M.jpg`
+            : null
+          return {
+            id: `ol_${doc.key || i}`,
+            title: doc.title || 'Unknown',
+            author: doc.author_name?.join(', ') || '',
+            desc: '',
+            cover,
+            emoji: '📚',
+            genres: (doc.subject || []).slice(0, 2).map(s => s.toLowerCase()),
+            bestseller: false, local: false,
+            amazonUrl: isbn ? `https://www.amazon.com/dp/${isbn}` : `https://www.amazon.com/s?k=${encodeURIComponent(doc.title)}`,
+            buyUrl: isbn ? `https://www.amazon.com/dp/${isbn}` : null,
+            source: 'openlibrary',
+          }
+        })
+      }
+
       setGbResults(books)
     } catch { setGbResults([]) }
     setGbLoading(false)
