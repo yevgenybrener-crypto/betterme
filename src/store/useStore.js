@@ -231,15 +231,43 @@ export const useStore = create(
         journalEntries: [entry, ...s.journalEntries],
       })),
 
-      // Book reading history — per goal
+      // Book reading history — per goal (legacy, kept for books)
       // readingHistory[goalId] = [{ bookId, title, author, emoji, genres, note, completedAt }]
       readingHistory: {},
       addReadingEntry: (goalId, entry) => set((s) => {
         const prev = (s.readingHistory || {})[goalId] || []
-        return { readingHistory: { ...(s.readingHistory || {}), [goalId]: [entry, ...prev] } }
+        // Also mirror into lifeLibrary for unified display
+        const libEntry = {
+          id: `${goalId}_${Date.now()}`,
+          type: 'book',
+          goalId,
+          title: entry.title,
+          subtitle: entry.author,
+          cover: entry.cover || null,
+          emoji: entry.emoji || '📚',
+          note: entry.note || '',
+          completedAt: entry.completedAt,
+          meta: { bookId: entry.bookId, genres: entry.genres },
+        }
+        const libPrev = (s.lifeLibrary || []); 
+        return {
+          readingHistory: { ...(s.readingHistory || {}), [goalId]: [entry, ...prev] },
+          lifeLibrary: [libEntry, ...libPrev],
+        }
       }),
       getReadingHistory: (goalId) => {
         return ((get().readingHistory || {})[goalId]) || []
+      },
+
+      // Life Library — unified store for all experience types
+      // [{ id, type, goalId, title, subtitle, cover, emoji, note, completedAt, meta }]
+      lifeLibrary: [],
+      addLibraryEntry: (entry) => set((s) => ({
+        lifeLibrary: [{ ...entry, id: `${entry.goalId}_${Date.now()}` }, ...(s.lifeLibrary || [])],
+      })),
+      getLibraryEntries: (type = null) => {
+        const entries = get().lifeLibrary || []
+        return type ? entries.filter(e => e.type === type) : entries
       },
 
       // Current book being read — per goal
@@ -272,7 +300,7 @@ export const useStore = create(
       clearStore: () => set({
         goals: [], completions: {}, journalEntries: [],
         weeklySchedules: {}, monthlySchedules: {}, weeklyIntentions: {},
-        readingHistory: {}, currentBook: {},
+        readingHistory: {}, currentBook: {}, lifeLibrary: [],
         onboardingComplete: false, toast: null, activeTab: 'home',
       }),
     }),

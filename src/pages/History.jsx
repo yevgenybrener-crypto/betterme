@@ -2,11 +2,18 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { CATEGORIES } from '../lib/constants'
 import TrendsTab from '../components/history/TrendsTab'
+import LibraryTab from '../components/library/LibraryShelf'
+
+const TABS = [
+  { id: 'trends',  label: 'Trends 📈' },
+  { id: 'library', label: 'Library 🗂️' },
+  { id: 'journal', label: 'Journal 📖' },
+]
 
 export default function History() {
   const [tab, setTab] = useState('trends')
   const [search, setSearch] = useState('')
-  const { journalEntries } = useStore()
+  const { journalEntries, lifeLibrary } = useStore()
 
   const filtered = journalEntries.filter((e) =>
     e.note.toLowerCase().includes(search.toLowerCase()) ||
@@ -18,16 +25,17 @@ export default function History() {
       <div className="px-5 pt-12 pb-4">
         <h1 className="text-2xl font-bold text-text-pri mb-4">History</h1>
         <div className="flex border-b-2 border-border">
-          {['trends', 'journal'].map((t) => (
-            <button key={t} onClick={() => setTab(t)}
+          {TABS.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
               className={`flex-1 pb-3 text-sm font-medium transition-colors
-                ${tab === t ? 'text-brand-primary font-semibold border-b-2 border-brand-primary -mb-[2px]' : 'text-text-sec'}`}>
-              {t === 'trends' ? 'Trends 📈' : 'Journal 📖'}
+                ${tab === t.id ? 'text-brand-primary font-semibold border-b-2 border-brand-primary -mb-[2px]' : 'text-text-sec'}`}>
+              {t.label}
             </button>
           ))}
         </div>
       </div>
-      {tab === 'trends' && <TrendsTab />}
+      {tab === 'trends'  && <TrendsTab />}
+      {tab === 'library' && <LibraryTab lifeLibrary={lifeLibrary || []} />}
       {tab === 'journal' && <JournalTab entries={filtered} search={search} setSearch={setSearch} />}
     </div>
   )
