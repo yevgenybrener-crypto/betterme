@@ -196,6 +196,19 @@ export default function DateSimulator({ onDateChange }) {
   const [seedStatus, setSeedStatus] = useState(null)
 
   const { goals, workdayPreset, addGoal, clearStore } = useStore()
+
+  function fullReset() {
+    clearStore()
+    // Also clear all API caches stored separately in localStorage
+    localStorage.removeItem('steimatzky_books')
+    localStorage.removeItem('nyt_books_hardcover-nonfiction')
+    localStorage.removeItem('nyt_books_hardcover-fiction')
+    localStorage.removeItem('nyt_books_business-books')
+    localStorage.removeItem('nyt_books_science')
+    setSeedStatus('cleared')
+    setTimeout(() => setSeedStatus(null), 2000)
+    onDateChange?.()
+  }
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const hasSeedData = goals.some(g => g.id?.startsWith('test_'))
 
@@ -413,7 +426,7 @@ export default function DateSimulator({ onDateChange }) {
                         className="flex-1 py-2 rounded-xl text-xs font-semibold border border-border bg-white text-text-sec">
                         Cancel
                       </button>
-                      <button onClick={() => { clearStore(); setShowResetConfirm(false); setSeedStatus('cleared'); setTimeout(() => setSeedStatus(null), 2000); onDateChange?.() }}
+                      <button onClick={() => { fullReset(); setShowResetConfirm(false) }}
                         className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-all">
                         Yes, wipe it
                       </button>

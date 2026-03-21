@@ -6,7 +6,7 @@ import {
   getBuyUrl, getStoreName, getStoreEmoji,
 } from '../../lib/bookData'
 import { fetchNYTBestsellers, hasNYTKey } from '../../lib/nytApi'
-import { fetchSteimatzkyBestsellers } from '../../lib/steimatzkyApi'
+import { fetchSteimatzkyBestsellers, clearSteimatzkyCache } from '../../lib/steimatzkyApi'
 import { useStore } from '../../store/useStore'
 
 // Detect Israel from workdayPreset
@@ -375,11 +375,28 @@ export default function BookPanel({ goal }) {
           : <p className="text-[10px] text-text-mut mb-2 pl-1">Read a few books and we will personalise these for you</p>
       )}
       {!search && activeFilter === 'local' && (
-        localLoading
-          ? <p className="text-[10px] text-text-mut mb-2 pl-1 animate-pulse">⏳ טוען רשימת רבי-מכר מסטימצקי...</p>
-          : liveLocalBooks.length > 0
-            ? <p className="text-[10px] text-blue-600 font-semibold mb-2 pl-1">🇮🇱 רבי-המכר של סטימצקי — מתעדכן שבועית</p>
-            : <p className="text-[10px] text-blue-600 font-semibold mb-2 pl-1">🇮🇱 ספרים פופולריים בישראל</p>
+        <div className="flex items-center justify-between mb-2">
+          {localLoading
+            ? <p className="text-[10px] text-text-mut animate-pulse">⏳ טוען רשימת רבי-מכר מסטימצקי...</p>
+            : liveLocalBooks.length > 0
+              ? <p className="text-[10px] text-blue-600 font-semibold">🇮🇱 רבי-המכר של סטימצקי — מתעדכן שבועית</p>
+              : <p className="text-[10px] text-blue-600 font-semibold">🇮🇱 ספרים פופולריים בישראל</p>
+          }
+          <button
+            onClick={() => {
+              clearSteimatzkyCache()
+              setLiveLocalBooks([])
+              setLocalLoading(true)
+              fetchSteimatzkyBestsellers()
+                .then(books => { if (books?.length) setLiveLocalBooks(books) })
+                .finally(() => setLocalLoading(false))
+            }}
+            className="text-[10px] text-text-mut hover:text-brand-primary transition-colors pl-2"
+            title="Refresh list"
+          >
+            🔄
+          </button>
+        </div>
       )}
       {!search && activeFilter === 'bestsellers' && (
         nytLoading
