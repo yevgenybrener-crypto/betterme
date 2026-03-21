@@ -13,7 +13,34 @@ const TABS = [
 export default function History() {
   const [tab, setTab] = useState('trends')
   const [search, setSearch] = useState('')
-  const { journalEntries, lifeLibrary } = useStore()
+  const { journalEntries, lifeLibrary, readingHistory, goals } = useStore()
+
+  // Merge readingHistory (legacy) into lifeLibrary for display
+  // so existing books show up without needing a migration
+  const mergedLibrary = (() => {
+    const libIds = new Set((lifeLibrary || []).map(e => e.meta?.bookId || e.title))
+    const bookEntries = []
+    Object.entries(readingHistory || {}).forEach(([goalId, entries]) => {
+      ;(entries || []).forEach(entry => {
+        const key = entry.bookId || entry.title
+        if (!libIds.has(key)) {
+          bookEntries.push({
+            id: `rh_${goalId}_${entry.bookId || entry.completedAt}`,
+            type: 'book',
+            goalId,
+            title: entry.title,
+            subtitle: entry.author,
+            cover: entry.cover || null,
+            emoji: entry.emoji || '📚',
+            note: entry.note || '',
+            completedAt: entry.completedAt,
+            meta: { bookId: entry.bookId, genres: entry.genres },
+          })
+        }
+      })
+    })
+    return [...(lifeLibrary || []), ...bookEntries]
+  })()
 
   const filtered = journalEntries.filter((e) =>
     e.note.toLowerCase().includes(search.toLowerCase()) ||
@@ -35,7 +62,7 @@ export default function History() {
         </div>
       </div>
       {tab === 'trends'  && <TrendsTab />}
-      {tab === 'library' && <LibraryTab lifeLibrary={lifeLibrary || []} />}
+      {tab === 'library' && <LibraryTab lifeLibrary={mergedLibrary} />}
       {tab === 'journal' && <JournalTab entries={filtered} search={search} setSearch={setSearch} />}
     </div>
   )
