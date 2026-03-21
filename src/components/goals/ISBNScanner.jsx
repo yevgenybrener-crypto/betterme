@@ -5,6 +5,7 @@ import { NotFoundException } from '@zxing/library'
 export default function ISBNScanner({ onDetected, onClose }) {
   const videoRef = useRef(null)
   const readerRef = useRef(null)
+  const detectedRef = useRef(false)
   const [error, setError] = useState(null)
   const [scanning, setScanning] = useState(true)
 
@@ -13,17 +14,19 @@ export default function ISBNScanner({ onDetected, onClose }) {
     readerRef.current = reader
 
     reader.decodeFromVideoDevice(undefined, videoRef.current, (result, err) => {
-      if (result) {
+      if (result && !detectedRef.current) {
         const text = result.getText()
         // Accept ISBN-13 (978/979 prefix) or ISBN-10
         const isISBN = /^(978|979)\d{10}$/.test(text) || /^\d{9}[\dX]$/.test(text)
         if (isISBN) {
+          detectedRef.current = true   // prevent further callbacks
           setScanning(false)
+          try { reader.reset() } catch {}  // stop camera immediately
           onDetected(text)
         }
       }
       if (err && !(err instanceof NotFoundException)) {
-        console.warn('Scanner error:', err)
+        // suppress — normal during scanning
       }
     }).catch(e => {
       setError(e.message?.includes('Permission') || e.message?.includes('permission')
@@ -34,7 +37,8 @@ export default function ISBNScanner({ onDetected, onClose }) {
     return () => {
       try { reader.reset() } catch {}
     }
-  }, [onDetected])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="fixed inset-0 bg-black z-[80] flex flex-col">
