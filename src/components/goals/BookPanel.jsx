@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import ISBNScanner from './ISBNScanner'
 import {
   BOOKS, BOOKS_IL, GENRES, GENRE_COLORS,
   getPersonalizedBooks, getBestsellers, getLocalBestsellers, getBooksByGenre,
@@ -194,7 +195,7 @@ export default function BookPanel({ goal }) {
   const [gbResults, setGbResults] = useState([])
   const [gbLoading, setGbLoading] = useState(false)
   const [gbSearched, setGbSearched] = useState(false)
-  const gbTimerRef = { current: null }
+  const [showScanner, setShowScanner] = useState(false)
 
   const history = getReadingHistory(goal.id)
   const readBookIds = history.map(e => e.bookId)
@@ -400,14 +401,28 @@ export default function BookPanel({ goal }) {
       {/* Suggestions header + search */}
       <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut mb-2">💡 What to read next</p>
 
-      <div className="relative mb-3">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base">🔍</span>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search title or author..."
-          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-bg-surface text-base text-text-pri placeholder:text-text-mut focus:outline-none focus:border-brand-primary"
-        />
+      <div className="relative mb-3 flex gap-2 items-center">
+        <div className="relative flex-1">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base">🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search title or author..."
+            className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-border bg-bg-surface text-base text-text-pri placeholder:text-text-mut focus:outline-none focus:border-brand-primary"
+          />
+          {search.length > 0 && (
+            <button
+              onClick={() => { setSearch(''); setGbResults([]); setGbSearched(false) }}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-text-mut/20 flex items-center justify-center text-text-mut text-[11px] font-bold"
+            >✕</button>
+          )}
+        </div>
+        {/* ISBN scan button */}
+        <button
+          onClick={() => setShowScanner(true)}
+          className="flex-shrink-0 w-10 h-10 rounded-xl border border-border bg-bg-surface flex items-center justify-center text-lg active:scale-95 transition-transform"
+          title="Scan ISBN barcode"
+        >📷</button>
       </div>
 
       {/* Genre filter pills */}
@@ -581,6 +596,43 @@ export default function BookPanel({ goal }) {
           />
         )}
       </AnimatePresence>
+
+      {/* ISBN Scanner */}
+      {showScanner && (
+        <ISBNScanner
+          onDetected={async (isbn) => {
+            setShowScanner(false)
+            setGbLoading(true)
+            setGbSearched(true)
+            try {
+              const res = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}&maxResults=1`)
+              const data = await res.json()
+              if (data.items?.length) {
+                const info = data.items[0].volumeInfo || {}
+                const book = {
+                  id: `gb_${data.items[0].id}`,
+                  title: info.title || 'Unknown',
+                  author: info.authors?.join(', ') || '',
+                  desc: info.description?.slice(0, 180) || '',
+                  cover: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
+                  emoji: '📚',
+                  genres: (info.categories || []).map(c => c.toLowerCase().split(' / ')[0]).slice(0, 2),
+                  bestseller: false, local: false,
+                  amazonUrl: `https://www.amazon.com/dp/${isbn}`,
+                  buyUrl: `https://www.amazon.com/dp/${isbn}`,
+                  source: 'isbn',
+                }
+                setGbResults([book])
+                setSearch(info.title || isbn)
+              } else {
+                setSearch(isbn)
+              }
+            } catch { setSearch(isbn) }
+            setGbLoading(false)
+          }}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
     </div>
   )
 }
