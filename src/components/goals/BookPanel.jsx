@@ -452,14 +452,7 @@ export default function BookPanel({ goal }) {
         >📷</button>
       </div>
 
-      {/* Log anyway — shown right below search bar so it's always visible */}
-      {search.trim() && !gbLoading && (
-        <button
-          onClick={() => handleStart({ id: `manual_${Date.now()}`, title: search, author: '', desc: '', cover: null, emoji: '📚', genres: [], bestseller: false, local: false, amazonUrl: `https://www.amazon.com/s?k=${encodeURIComponent(search)}`, buyUrl: null, source: 'manual' })}
-          className="w-full mb-3 py-2.5 text-xs font-semibold text-brand-primary bg-brand-primary/8 rounded-xl border border-brand-primary/20">
-          ✅ Log "{search}" anyway
-        </button>
-      )}
+
 
       {/* Genre filter pills */}
       {!search && (
@@ -680,6 +673,17 @@ export default function BookPanel({ goal }) {
           />
         )}
       </AnimatePresence>
+
+      {/* Sticky "Log anyway" bar — always visible at bottom when searching */}
+      {search.trim() && (
+        <div className="sticky bottom-0 pt-2 pb-1 bg-bg-base border-t border-border mt-2">
+          <button
+            onClick={() => handleStart({ id: `manual_${Date.now()}`, title: search, author: '', desc: '', cover: null, emoji: '📚', genres: [], bestseller: false, local: false, amazonUrl: `https://www.amazon.com/s?k=${encodeURIComponent(search)}`, buyUrl: null, source: 'manual' })}
+            className="w-full py-3 text-sm font-bold text-white bg-brand-primary rounded-xl">
+            ✅ Log "{search.length > 25 ? search.slice(0, 25) + '…' : search}" anyway
+          </button>
+        </div>
+      )}
 
       {/* ISBN Scanner */}
       {showScanner && (
