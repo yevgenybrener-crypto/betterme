@@ -6,6 +6,7 @@ import {
   getBuyUrl, getStoreName, getStoreEmoji,
 } from '../../lib/bookData'
 import { fetchNYTBestsellers, hasNYTKey } from '../../lib/nytApi'
+import { fetchSteimatzkyBestsellers } from '../../lib/steimatzkyApi'
 import { useStore } from '../../store/useStore'
 
 // Detect Israel from workdayPreset
@@ -187,6 +188,8 @@ export default function BookPanel({ goal }) {
   const [completingBook, setCompletingBook] = useState(null)
   const [nytBooks, setNytBooks] = useState([])
   const [nytLoading, setNytLoading] = useState(false)
+  const [liveLocalBooks, setLiveLocalBooks] = useState([])
+  const [localLoading, setLocalLoading] = useState(false)
 
   const history = getReadingHistory(goal.id)
   const readBookIds = history.map(e => e.bookId)
@@ -194,7 +197,7 @@ export default function BookPanel({ goal }) {
 
   const allBooks = isIsrael ? [...BOOKS, ...BOOKS_IL] : BOOKS
 
-  // Fetch NYT bestsellers eagerly on mount (so it's ready when user taps the tab)
+  // Fetch NYT bestsellers eagerly on mount
   useEffect(() => {
     if (!hasNYTKey()) return
     setNytLoading(true)
@@ -203,6 +206,16 @@ export default function BookPanel({ goal }) {
       .catch(err => console.warn('NYT fetch failed:', err))
       .finally(() => setNytLoading(false))
   }, [])
+
+  // Fetch live Steimatzky list on mount (Israel only)
+  useEffect(() => {
+    if (!isIsrael) return
+    setLocalLoading(true)
+    fetchSteimatzkyBestsellers()
+      .then(books => { if (books && books.length > 0) setLiveLocalBooks(books) })
+      .catch(err => console.warn('Steimatzky fetch failed:', err))
+      .finally(() => setLocalLoading(false))
+  }, [isIsrael])
 
   const personalizedBooks = useMemo(
     () => getPersonalizedBooks(readBookIds, isIsrael),
@@ -235,7 +248,11 @@ export default function BookPanel({ goal }) {
       const nytUnread = nytBooks.filter(b => !readBookIds.includes(b.id))
       return nytUnread.length > 0 ? nytUnread : bestsellerBooks
     }
-    if (activeFilter === 'local')       return localBooks
+    if (activeFilter === 'local') {
+      // Live Steimatzky data takes priority; fall back to curated list
+      const unreadLive = liveLocalBooks.filter(b => !readBookIds.includes(b.id))
+      return unreadLive.length > 0 ? unreadLive : localBooks
+    }
     if (activeFilter === 'all')         return allBooks.filter(b => !readBookIds.includes(b.id))
     return getBooksByGenre(activeFilter, readBookIds, isIsrael)
   }
@@ -358,7 +375,11 @@ export default function BookPanel({ goal }) {
           : <p className="text-[10px] text-text-mut mb-2 pl-1">Read a few books and we will personalise these for you</p>
       )}
       {!search && activeFilter === 'local' && (
-        <p className="text-[10px] text-blue-600 font-semibold mb-2 pl-1">🇮🇱 Top books in Israel — Israeli authors + local favourites</p>
+        localLoading
+          ? <p className="text-[10px] text-text-mut mb-2 pl-1 animate-pulse">⏳ טוען רשימת רבי-מכר מסטימצקי...</p>
+          : liveLocalBooks.length > 0
+            ? <p className="text-[10px] text-blue-600 font-semibold mb-2 pl-1">🇮🇱 רבי-המכר של סטימצקי — מתעדכן שבועית</p>
+            : <p className="text-[10px] text-blue-600 font-semibold mb-2 pl-1">🇮🇱 ספרים פופולריים בישראל</p>
       )}
       {!search && activeFilter === 'bestsellers' && (
         nytLoading
