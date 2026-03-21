@@ -189,6 +189,11 @@ export default function BookPanel({ goal }) {
   const [nytLoading, setNytLoading] = useState(false)
   const [liveLocalBooks, setLiveLocalBooks] = useState([])
   const [localLoading, setLocalLoading] = useState(false)
+  // Google Books search
+  const [gbQuery, setGbQuery] = useState('')
+  const [gbResults, setGbResults] = useState([])
+  const [gbLoading, setGbLoading] = useState(false)
+  const [gbSearched, setGbSearched] = useState(false)
 
   const history = getReadingHistory(goal.id)
   const readBookIds = history.map(e => e.bookId)
@@ -294,7 +299,40 @@ export default function BookPanel({ goal }) {
     ...(isIsrael ? [{ id: 'local', label: '🇮🇱 מקומי' }] : []),
     { id: 'all',         label: 'All' },
     ...GENRES.map(g => ({ id: g.id, label: g.label })),
+    { id: 'search', label: '🔍 Search' },
   ]
+
+  async function searchGoogleBooks(q) {
+    if (!q.trim()) return
+    setGbLoading(true)
+    setGbSearched(true)
+    try {
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=15&langRestrict=&printType=books`
+      const res = await fetch(url)
+      const data = await res.json()
+      const books = (data.items || []).map(item => {
+        const info = item.volumeInfo || {}
+        const isbn = info.industryIdentifiers?.find(i => i.type === 'ISBN_13')?.identifier
+          || info.industryIdentifiers?.find(i => i.type === 'ISBN_10')?.identifier
+        return {
+          id: `gb_${item.id}`,
+          title: info.title || 'Unknown',
+          author: info.authors?.join(', ') || '',
+          desc: info.description?.slice(0, 180) || '',
+          cover: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
+          emoji: '📚',
+          genres: (info.categories || []).map(c => c.toLowerCase().split(' / ')[0]).slice(0, 2),
+          bestseller: false,
+          local: false,
+          amazonUrl: isbn ? `https://www.amazon.com/dp/${isbn}` : `https://www.amazon.com/s?k=${encodeURIComponent(info.title)}`,
+          buyUrl: isbn ? `https://www.amazon.com/dp/${isbn}` : null,
+          source: 'google',
+        }
+      })
+      setGbResults(books)
+    } catch { setGbResults([]) }
+    setGbLoading(false)
+  }
 
   // If For You isn't unlocked yet and it's the active filter, switch to bestsellers
   const effectiveFilter = (!forYouUnlocked && activeFilter === 'foryou') ? 'bestsellers' : activeFilter
@@ -416,7 +454,46 @@ export default function BookPanel({ goal }) {
             : <p className="text-[10px] text-orange-500 font-semibold mb-2 pl-1">🏆 All-time international bestsellers</p>
       )}
 
-      {/* Book list */}
+      {/* Search tab */}
+      {activeFilter === 'search' ? (
+        <div>
+          <form onSubmit={e => { e.preventDefault(); searchGoogleBooks(gbQuery) }} className="flex gap-2 mb-3">
+            <input
+              type="search"
+              value={gbQuery}
+              onChange={e => setGbQuery(e.target.value)}
+              placeholder="Search any book by title or author..."
+              className="flex-1 bg-bg-surface border border-border rounded-xl px-3 py-2.5 text-sm text-text-pri placeholder:text-text-mut outline-none focus:border-brand-primary"
+              style={{ fontSize: '16px' }}
+              autoFocus
+            />
+            <button type="submit"
+              className="px-4 py-2.5 rounded-xl bg-brand-primary text-white text-sm font-bold flex-shrink-0">
+              {gbLoading ? '⏳' : '🔍'}
+            </button>
+          </form>
+          <div className="max-h-[320px] overflow-y-auto">
+            {gbLoading && <p className="text-sm text-text-mut text-center py-8">Searching...</p>}
+            {!gbLoading && gbSearched && gbResults.length === 0 && (
+              <p className="text-sm text-text-mut text-center py-8">No results found. Try a different title or author.</p>
+            )}
+            {!gbLoading && !gbSearched && (
+              <p className="text-sm text-text-mut text-center py-8">🌍 Search millions of books from Google Books</p>
+            )}
+            {gbResults.map(book => (
+              <BookCard
+                key={book.id}
+                book={book}
+                isIsrael={isIsrael}
+                onStart={() => handleStart(book)}
+                onSave={() => toggleSave(book.id)}
+                isSaved={savedIds.includes(book.id)}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+      /* Book list */
       <div className="max-h-[320px] overflow-y-auto">
         {displayedBooks.length === 0 ? (
           <p className="text-sm text-text-mut text-center py-8">
@@ -435,6 +512,7 @@ export default function BookPanel({ goal }) {
           ))
         )}
       </div>
+      )}
 
       {/* Reading history */}
       {history.length > 0 && (
