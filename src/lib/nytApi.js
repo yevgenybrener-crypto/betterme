@@ -3,7 +3,7 @@
 // API key: set VITE_NYT_API_KEY in .env
 // Free tier: https://developer.nytimes.com/ (register → create app → Books API)
 
-const NYT_KEY = import.meta.env.VITE_NYT_API_KEY
+const NYT_KEY = import.meta.env.VITE_NYT_API_KEY || 'LRPibRLWGRkaxwarekLbH0tnvtRzOEzYQ5xl8liln9a70R6u'
 const CACHE_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
 const LISTS = [
