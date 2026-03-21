@@ -222,6 +222,37 @@ export default function BookPanel({ goal }) {
       .finally(() => setLocalLoading(false))
   }, [isIsrael])
 
+  async function searchGoogleBooks(q) {
+    if (!q.trim()) return
+    setGbLoading(true)
+    setGbSearched(true)
+    try {
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=15&langRestrict=&printType=books`
+      const res = await fetch(url)
+      const data = await res.json()
+      const books = (data.items || []).map(item => {
+        const info = item.volumeInfo || {}
+        const isbn = info.industryIdentifiers?.find(i => i.type === 'ISBN_13')?.identifier
+          || info.industryIdentifiers?.find(i => i.type === 'ISBN_10')?.identifier
+        return {
+          id: `gb_${item.id}`,
+          title: info.title || 'Unknown',
+          author: info.authors?.join(', ') || '',
+          desc: info.description?.slice(0, 180) || '',
+          cover: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
+          emoji: '📚',
+          genres: (info.categories || []).map(c => c.toLowerCase().split(' / ')[0]).slice(0, 2),
+          bestseller: false,
+          local: false,
+          amazonUrl: isbn ? `https://www.amazon.com/dp/${isbn}` : `https://www.amazon.com/s?k=${encodeURIComponent(info.title)}`,
+          buyUrl: isbn ? `https://www.amazon.com/dp/${isbn}` : null,
+          source: 'google',
+        }
+      })
+      setGbResults(books)
+    } catch { setGbResults([]) }
+    setGbLoading(false)
+  }
   // Auto-search Google Books when main search has no local results
   useEffect(() => {
     if (!search.trim()) { setGbResults([]); setGbSearched(false); return }
@@ -317,37 +348,6 @@ export default function BookPanel({ goal }) {
     { id: 'search', label: '🔍 Search' },
   ]
 
-  async function searchGoogleBooks(q) {
-    if (!q.trim()) return
-    setGbLoading(true)
-    setGbSearched(true)
-    try {
-      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=15&langRestrict=&printType=books`
-      const res = await fetch(url)
-      const data = await res.json()
-      const books = (data.items || []).map(item => {
-        const info = item.volumeInfo || {}
-        const isbn = info.industryIdentifiers?.find(i => i.type === 'ISBN_13')?.identifier
-          || info.industryIdentifiers?.find(i => i.type === 'ISBN_10')?.identifier
-        return {
-          id: `gb_${item.id}`,
-          title: info.title || 'Unknown',
-          author: info.authors?.join(', ') || '',
-          desc: info.description?.slice(0, 180) || '',
-          cover: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
-          emoji: '📚',
-          genres: (info.categories || []).map(c => c.toLowerCase().split(' / ')[0]).slice(0, 2),
-          bestseller: false,
-          local: false,
-          amazonUrl: isbn ? `https://www.amazon.com/dp/${isbn}` : `https://www.amazon.com/s?k=${encodeURIComponent(info.title)}`,
-          buyUrl: isbn ? `https://www.amazon.com/dp/${isbn}` : null,
-          source: 'google',
-        }
-      })
-      setGbResults(books)
-    } catch { setGbResults([]) }
-    setGbLoading(false)
-  }
 
   // If For You isn't unlocked yet and it's the active filter, switch to bestsellers
   const effectiveFilter = (!forYouUnlocked && activeFilter === 'foryou') ? 'bestsellers' : activeFilter
