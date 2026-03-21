@@ -576,6 +576,12 @@ export default function BookPanel({ goal }) {
                   onSave={() => toggleSave(book.id)}
                   isSaved={savedIds.includes(book.id)} />
               ))}
+              {/* Always show "log anyway" when search is active */}
+              <button
+                onClick={() => handleStart({ id: `manual_${Date.now()}`, title: search, author: '', desc: '', cover: null, emoji: '📚', genres: [], bestseller: false, local: false, amazonUrl: `https://www.amazon.com/s?k=${encodeURIComponent(search)}`, buyUrl: null, source: 'manual' })}
+                className="w-full mt-2 py-2.5 text-xs font-semibold text-text-mut bg-bg-surface rounded-xl border border-border">
+                Can't find it? Log "{search}" anyway ✅
+              </button>
             </div>
           ) : (
             <div className="py-6 text-center">
