@@ -92,7 +92,6 @@ function BookTitle({ book, url }) {
       <a href={url} target="_blank" rel="noopener noreferrer"
         className="text-[13px] font-bold text-text-pri hover:text-brand-primary transition-colors flex flex-col gap-0.5">
         {content}
-        <span className="text-[9px] text-text-mut opacity-60">↗</span>
       </a>
     )
   }
