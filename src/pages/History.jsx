@@ -34,6 +34,7 @@ export default function History() {
             emoji: entry.emoji || '📚',
             note: entry.note || '',
             completedAt: entry.completedAt,
+            buyUrl: entry.buyUrl || null,
             meta: { bookId: entry.bookId, genres: entry.genres },
           })
         }

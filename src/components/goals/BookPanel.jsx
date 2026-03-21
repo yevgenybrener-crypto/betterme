@@ -271,6 +271,8 @@ export default function BookPanel({ goal }) {
       author: completingBook.author,
       emoji: completingBook.emoji,
       genres: completingBook.genres,
+      cover: completingBook.cover || null,
+      buyUrl: completingBook.steimatzkyUrl || completingBook.amazonUrl || null,
       note,
       completedAt: new Date().toISOString(),
     }

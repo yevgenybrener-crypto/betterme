@@ -247,6 +247,7 @@ export const useStore = create(
           emoji: entry.emoji || '📚',
           note: entry.note || '',
           completedAt: entry.completedAt,
+          buyUrl: entry.buyUrl || null,
           meta: { bookId: entry.bookId, genres: entry.genres },
         }
         const libPrev = (s.lifeLibrary || []); 

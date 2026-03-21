@@ -4,6 +4,20 @@ import { LIBRARY_TYPES } from '../../lib/libraryTypes'
 
 // ─── Entry Detail Modal ───────────────────────────────────────────────────────
 function EntryModal({ entry, typeConfig, onClose }) {
+  const [copied, setCopied] = useState(false)
+
+  function handleShare() {
+    const text = `${typeConfig.emoji} Just finished: "${entry.title}"${entry.subtitle ? ` by ${entry.subtitle}` : ''}${entry.note ? `\n\n💡 "${entry.note}"` : ''}`
+    if (navigator.share) {
+      navigator.share({ title: entry.title, text }).catch(() => {})
+    } else {
+      navigator.clipboard?.writeText(text).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -17,32 +31,54 @@ function EntryModal({ entry, typeConfig, onClose }) {
         onClick={e => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-border rounded-full mx-auto mb-5" />
-        <div className="flex gap-4 items-start mb-4">
+
+        {/* Cover + info */}
+        <div className="flex gap-4 items-start mb-5">
           {entry.cover
-            ? <img src={entry.cover} alt={entry.title} className="w-14 h-[72px] rounded-xl object-cover flex-shrink-0" />
-            : <div className="w-14 h-[72px] rounded-xl flex items-center justify-center text-3xl flex-shrink-0"
+            ? <img src={entry.cover} alt={entry.title}
+                className="w-20 h-[106px] rounded-2xl object-cover flex-shrink-0 shadow-md" />
+            : <div className="w-20 h-[106px] rounded-2xl flex items-center justify-center text-4xl flex-shrink-0 shadow-md"
                 style={{ background: typeConfig.bg }}>{entry.emoji || typeConfig.emoji}</div>
           }
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: typeConfig.color }}>
+          <div className="flex-1 min-w-0 pt-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: typeConfig.color }}>
               {typeConfig.emoji} {typeConfig.entryLabel}
             </p>
             <p className="text-base font-bold text-text-pri leading-snug">{entry.title}</p>
-            {entry.subtitle && <p className="text-sm text-text-sec mt-0.5">{entry.subtitle}</p>}
-            <p className="text-[11px] text-text-mut mt-1">
-              {new Date(entry.completedAt).toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' })}
+            {entry.subtitle && <p className="text-sm text-text-sec mt-1">{entry.subtitle}</p>}
+            <p className="text-[11px] text-text-mut mt-2">
+              📅 {new Date(entry.completedAt).toLocaleDateString('default', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
           </div>
         </div>
+
+        {/* Note */}
         {entry.note ? (
-          <div className="bg-bg-surface rounded-2xl p-4 border border-border">
+          <div className="bg-bg-surface rounded-2xl p-4 border border-border mb-4">
             <p className="text-[10px] font-bold uppercase tracking-widest text-text-mut mb-2">💡 Your takeaway</p>
             <p className="text-sm text-text-sec leading-relaxed italic">"{entry.note}"</p>
           </div>
         ) : (
-          <p className="text-sm text-text-mut text-center py-4">No note saved for this one</p>
+          <div className="rounded-2xl p-3 border border-dashed border-border mb-4 text-center">
+            <p className="text-xs text-text-mut">No takeaway saved</p>
+          </div>
         )}
-        <button onClick={onClose} className="w-full mt-4 py-3 text-text-mut text-sm font-semibold">Close</button>
+
+        {/* Actions */}
+        <div className="flex gap-3 mb-3">
+          {entry.buyUrl && (
+            <a href={entry.buyUrl} target="_blank" rel="noopener noreferrer"
+              className="flex-1 py-3 rounded-2xl border border-border bg-bg-surface text-sm font-semibold text-text-sec flex items-center justify-center gap-2">
+              🛒 Buy / View
+            </a>
+          )}
+          <button onClick={handleShare}
+            className="flex-1 py-3 rounded-2xl border border-brand-primary/30 bg-brand-primary/8 text-sm font-semibold text-brand-primary flex items-center justify-center gap-2">
+            {copied ? '✓ Copied!' : '↗ Share'}
+          </button>
+        </div>
+
+        <button onClick={onClose} className="w-full py-3 text-text-mut text-sm font-semibold">Close</button>
       </motion.div>
     </motion.div>
   )
