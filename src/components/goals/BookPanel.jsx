@@ -452,6 +452,15 @@ export default function BookPanel({ goal }) {
         >📷</button>
       </div>
 
+      {/* Log anyway — shown right below search bar so it's always visible */}
+      {search.trim() && !gbLoading && (
+        <button
+          onClick={() => handleStart({ id: `manual_${Date.now()}`, title: search, author: '', desc: '', cover: null, emoji: '📚', genres: [], bestseller: false, local: false, amazonUrl: `https://www.amazon.com/s?k=${encodeURIComponent(search)}`, buyUrl: null, source: 'manual' })}
+          className="w-full mb-3 py-2.5 text-xs font-semibold text-brand-primary bg-brand-primary/8 rounded-xl border border-brand-primary/20">
+          ✅ Log "{search}" anyway
+        </button>
+      )}
+
       {/* Genre filter pills */}
       {!search && (
         <div className="flex gap-2 overflow-x-auto pb-1 mb-3 scrollbar-hide">
@@ -562,14 +571,6 @@ export default function BookPanel({ goal }) {
       ) : (
       /* Book list */
       <div>
-        {/* Always-visible Log Anyway button when searching */}
-        {search.trim() && !gbLoading && (
-          <button
-            onClick={() => handleStart({ id: `manual_${Date.now()}`, title: search, author: '', desc: '', cover: null, emoji: '📚', genres: [], bestseller: false, local: false, amazonUrl: `https://www.amazon.com/s?k=${encodeURIComponent(search)}`, buyUrl: null, source: 'manual' })}
-            className="w-full mb-2 py-2.5 text-xs font-semibold text-brand-primary bg-brand-primary/8 rounded-xl border border-brand-primary/20">
-            ✅ Log "{search}" anyway
-          </button>
-        )}
       <div className="max-h-[300px] overflow-y-auto">
         {displayedBooks.length === 0 ? (
           gbLoading ? (
