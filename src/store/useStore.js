@@ -298,6 +298,24 @@ export const useStore = create(
       clearToast: () => set({ toast: null }),
 
       // Clear all user data on sign out
+      // Spotify
+      spotifyAccessToken: null,
+      spotifyRefreshToken: null,
+      spotifyTokenExpiry: 0,
+      spotifyConnected: false,
+      setSpotifyTokens: ({ accessToken, refreshToken, expiresAt }) => set({
+        spotifyAccessToken: accessToken,
+        spotifyRefreshToken: refreshToken,
+        spotifyTokenExpiry: expiresAt,
+        spotifyConnected: true,
+      }),
+      disconnectSpotify: () => set({
+        spotifyAccessToken: null,
+        spotifyRefreshToken: null,
+        spotifyTokenExpiry: 0,
+        spotifyConnected: false,
+      }),
+
       // Apple Health / HealthKit
       healthKitEnabled: false,
       healthKitPermissionsGranted: false,

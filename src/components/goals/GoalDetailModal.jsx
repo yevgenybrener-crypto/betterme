@@ -4,12 +4,19 @@ import { useStore, getWeekStartDay } from '../../store/useStore'
 import { CATEGORIES } from '../../lib/constants'
 import { getSimulatedDate } from '../../lib/simulatedDate'
 import BookPanel from './BookPanel'
+import PodcastPanel from './PodcastPanel'
 
 // Detect if a goal is a "reading" goal based on name keywords
 function isBookGoal(goal) {
   if (!goal) return false
   const name = (goal.name || '').toLowerCase()
   return ['book', 'read', 'reading'].some(k => name.includes(k))
+}
+
+function isPodcastGoal(goal) {
+  if (!goal) return false
+  const name = (goal.name || '').toLowerCase()
+  return ['podcast', 'listen', 'audio'].some(k => name.includes(k))
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -318,8 +325,8 @@ export default function GoalDetailModal({ goal, open, onClose }) {
           setWeeklySchedule={setWeeklySchedule}
         />
 
-        {/* Per-day intention fields — hidden for reading/book goals */}
-        {!isBookGoal(goal) && scheduledDates.length > 0 && (
+        {/* Per-day intention fields — hidden for reading/book/podcast goals */}
+        {!isBookGoal(goal) && !isPodcastGoal(goal) && scheduledDates.length > 0 && (
           <div className="flex flex-col gap-3">
             <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut">Plans per day</p>
             {scheduledDates.map(date => {
@@ -343,7 +350,7 @@ export default function GoalDetailModal({ goal, open, onClose }) {
           </div>
         )}
 
-        {!isBookGoal(goal) && scheduledDates.length === 0 && !isPast && (
+        {!isBookGoal(goal) && !isPodcastGoal(goal) && scheduledDates.length === 0 && !isPast && (
           <p className="text-sm text-text-mut italic text-center py-2 bg-bg-surface rounded-xl">
             Pick days above to set plans for each one
           </p>
@@ -456,6 +463,14 @@ export default function GoalDetailModal({ goal, open, onClose }) {
               {isBookGoal(goal) && (
                 <>
                   <BookPanel goal={goal} />
+                  <div className="border-t border-border my-4" />
+                </>
+              )}
+
+              {/* Podcast Panel — for podcast/listening goals */}
+              {isPodcastGoal(goal) && (
+                <>
+                  <PodcastPanel goal={goal} />
                   <div className="border-t border-border my-4" />
                 </>
               )}

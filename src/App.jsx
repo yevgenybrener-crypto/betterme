@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useStore } from './store/useStore'
 import { supabase } from './lib/supabase'
+import { exchangeCode } from './lib/spotifyAuth'
 import Auth from './pages/Auth'
 import Onboarding from './pages/Onboarding'
 import Home from './pages/Home'
@@ -13,9 +14,29 @@ import HorizonWizard from './components/wizard/HorizonWizard'
 import DateSimulator from './components/debug/DateSimulator'
 
 export default function App() {
-  const { user, setUser, onboardingComplete, activeTab } = useStore()
-  // Increment this key to force re-render of date-sensitive components when sim date changes
+  const { user, setUser, onboardingComplete, activeTab, setSpotifyTokens } = useStore()
   const [dateKey, setDateKey] = useState(0)
+  const [spotifyCallbackHandled, setSpotifyCallbackHandled] = useState(false)
+
+  // Handle Spotify OAuth callback
+  useEffect(() => {
+    const path = window.location.pathname
+    const params = new URLSearchParams(window.location.search)
+    if (path === '/spotify-callback' && params.get('code')) {
+      const code = params.get('code')
+      const state = params.get('state')
+      exchangeCode(code, state)
+        .then(tokens => {
+          setSpotifyTokens(tokens)
+          window.history.replaceState({}, '', '/')
+          setSpotifyCallbackHandled(true)
+        })
+        .catch(err => {
+          console.error('Spotify auth failed:', err)
+          window.history.replaceState({}, '', '/')
+        })
+    }
+  }, [setSpotifyTokens])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
