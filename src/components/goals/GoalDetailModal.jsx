@@ -318,8 +318,8 @@ export default function GoalDetailModal({ goal, open, onClose }) {
           setWeeklySchedule={setWeeklySchedule}
         />
 
-        {/* Per-day intention fields for each scheduled day */}
-        {scheduledDates.length > 0 && (
+        {/* Per-day intention fields — hidden for reading/book goals */}
+        {!isBookGoal(goal) && scheduledDates.length > 0 && (
           <div className="flex flex-col gap-3">
             <p className="text-[10px] font-bold tracking-[0.1em] uppercase text-text-mut">Plans per day</p>
             {scheduledDates.map(date => {
@@ -343,7 +343,7 @@ export default function GoalDetailModal({ goal, open, onClose }) {
           </div>
         )}
 
-        {scheduledDates.length === 0 && !isPast && (
+        {!isBookGoal(goal) && scheduledDates.length === 0 && !isPast && (
           <p className="text-sm text-text-mut italic text-center py-2 bg-bg-surface rounded-xl">
             Pick days above to set plans for each one
           </p>
