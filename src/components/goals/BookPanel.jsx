@@ -242,19 +242,17 @@ export default function BookPanel({ goal }) {
         (b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q))
       )
     }
-    if (activeFilter === 'foryou')      return personalizedBooks
-    if (activeFilter === 'bestsellers') {
-      // NYT live data takes priority; fall back to static list
+    if (effectiveFilter === 'foryou')      return personalizedBooks
+    if (effectiveFilter === 'bestsellers') {
       const nytUnread = nytBooks.filter(b => !readBookIds.includes(b.id))
       return nytUnread.length > 0 ? nytUnread : bestsellerBooks
     }
-    if (activeFilter === 'local') {
-      // Live Steimatzky data takes priority; fall back to curated list
+    if (effectiveFilter === 'local') {
       const unreadLive = liveLocalBooks.filter(b => !readBookIds.includes(b.id))
       return unreadLive.length > 0 ? unreadLive : localBooks
     }
-    if (activeFilter === 'all')         return allBooks.filter(b => !readBookIds.includes(b.id))
-    return getBooksByGenre(activeFilter, readBookIds, isIsrael)
+    if (effectiveFilter === 'all') return allBooks.filter(b => !readBookIds.includes(b.id))
+    return getBooksByGenre(effectiveFilter, readBookIds, isIsrael)
   }
 
   function handleStart(book) {
@@ -287,13 +285,18 @@ export default function BookPanel({ goal }) {
     )
   }
 
+  const forYouUnlocked = history.length >= 3
+
   const filters = [
-    { id: 'foryou',      label: '✨ For You' },
+    ...(forYouUnlocked ? [{ id: 'foryou', label: '✨ For You' }] : []),
     { id: 'bestsellers', label: '🏆 Best Sellers' },
     ...(isIsrael ? [{ id: 'local', label: '🇮🇱 מקומי' }] : []),
     { id: 'all',         label: 'All' },
     ...GENRES.map(g => ({ id: g.id, label: g.label })),
   ]
+
+  // If For You isn't unlocked yet and it's the active filter, switch to bestsellers
+  const effectiveFilter = (!forYouUnlocked && activeFilter === 'foryou') ? 'bestsellers' : activeFilter
 
   const displayedBooks = getFilteredBooks()
 
@@ -369,10 +372,16 @@ export default function BookPanel({ goal }) {
       )}
 
       {/* Contextual subtitle */}
-      {!search && activeFilter === 'foryou' && (
-        forYouGenres.length > 0
-          ? <p className="text-[10px] text-brand-primary font-semibold mb-2 pl-1">✨ Based on your reading: {forYouGenres.join(', ')}</p>
-          : <p className="text-[10px] text-text-mut mb-2 pl-1">Read a few books and we will personalise these for you</p>
+      {!search && effectiveFilter === 'foryou' && (
+        <p className="text-[10px] text-brand-primary font-semibold mb-2 pl-1">✨ Based on your reading: {forYouGenres.join(', ')}</p>
+      )}
+      {!search && effectiveFilter === 'bestsellers' && !forYouUnlocked && (
+        <div className="bg-brand-primary/5 border border-brand-primary/15 rounded-xl px-3 py-2 mb-3 flex items-center gap-2">
+          <span className="text-base">🔒</span>
+          <p className="text-[11px] text-brand-primary font-medium">
+            Log <strong>{3 - history.length} more book{3 - history.length !== 1 ? 's' : ''}</strong> to unlock personalised recommendations
+          </p>
+        </div>
       )}
       {!search && activeFilter === 'local' && (
         <div className="flex items-center justify-between mb-2">
