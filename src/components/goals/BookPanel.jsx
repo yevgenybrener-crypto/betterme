@@ -413,10 +413,16 @@ export default function BookPanel({ goal }) {
               </a>
               <p className="text-[11px] text-text-sec">{currentBook.author}</p>
             </div>
-            <button onClick={handleDone}
-              className="flex-shrink-0 text-[12px] font-bold px-3 py-2 rounded-xl bg-brand-accent text-white">
-              ✓ Done!
-            </button>
+            <div className="flex flex-col gap-1.5 flex-shrink-0">
+              <button onClick={handleDone}
+                className="text-[12px] font-bold px-3 py-2 rounded-xl bg-brand-accent text-white">
+                ✓ Done!
+              </button>
+              <button onClick={() => clearCurrentBook(goal.id)}
+                className="text-[11px] font-semibold px-3 py-1.5 rounded-xl bg-bg-surface border border-border text-text-mut">
+                ✕ Remove
+              </button>
+            </div>
           </div>
         </div>
       ) : (
