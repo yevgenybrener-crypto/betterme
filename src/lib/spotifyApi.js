@@ -68,6 +68,37 @@ export async function getRecentlyPlayedEpisodes(store) {
   })
 }
 
+// ─── Get latest episode per followed show ────────────────────────────────────
+export async function getNewEpisodes(shows, store) {
+  // Fetch latest episode for each show in parallel (max 15 shows)
+  const batch = shows.slice(0, 15)
+  const results = await Promise.allSettled(
+    batch.map(show =>
+      spotifyFetch(`/shows/${show.id}/episodes?limit=1&market=IL`, store)
+        .then(data => {
+          const ep = data.items?.[0]
+          if (!ep) return null
+          return {
+            id: ep.id,
+            episodeName: ep.name,
+            showName: show.name,
+            showId: show.id,
+            showImage: show.image,
+            duration: Math.round((ep.duration_ms || 0) / 60000),
+            releaseDate: ep.release_date,
+            description: ep.description?.slice(0, 120),
+            spotifyUrl: ep.external_urls?.spotify,
+            spotifyUri: ep.uri,
+          }
+        })
+    )
+  )
+  return results
+    .filter(r => r.status === 'fulfilled' && r.value)
+    .map(r => r.value)
+    .sort((a, b) => new Date(b.releaseDate) - new Date(a.releaseDate))
+}
+
 // ─── Search podcasts ──────────────────────────────────────────────────────────
 export async function searchPodcasts(query, store) {
   const data = await spotifyFetch(

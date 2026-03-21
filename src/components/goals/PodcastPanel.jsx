@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '../../store/useStore'
 import { startSpotifyAuth } from '../../lib/spotifyAuth'
-import { getFollowedShows, getRecentlyPlayedEpisodes, searchPodcasts } from '../../lib/spotifyApi'
+import { getFollowedShows, getRecentlyPlayedEpisodes, searchPodcasts, getNewEpisodes } from '../../lib/spotifyApi'
 
 // ─── Log episode modal ────────────────────────────────────────────────────────
 function LogEpisodeModal({ episode, onSave, onSkip }) {
@@ -75,21 +75,54 @@ function ShowCard({ show, onLog }) {
   )
 }
 
-// ─── Episode card (recently played) ─────────────────────────────────────────
-function EpisodeCard({ episode, onLog }) {
+// ─── Episode card ─────────────────────────────────────────────────────────────
+function EpisodeCard({ episode, onLog, showOpenButton = false }) {
+  function openInSpotify() {
+    // Try to open in Spotify app first, fall back to web
+    const appUrl = episode.spotifyUri
+      ? `spotify:episode:${episode.id}`
+      : episode.spotifyUrl
+    window.open(appUrl || episode.spotifyUrl, '_blank')
+  }
+
+  function formatRelease(dateStr) {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    const now = new Date()
+    const diffDays = Math.floor((now - d) / 86400000)
+    if (diffDays === 0) return 'Today'
+    if (diffDays === 1) return 'Yesterday'
+    if (diffDays < 7) return `${diffDays}d ago`
+    return d.toLocaleDateString('default', { month: 'short', day: 'numeric' })
+  }
+
   return (
-    <button onClick={() => onLog(episode)}
-      className="w-full flex gap-3 items-start py-2.5 border-b border-border/40 last:border-0 text-left active:bg-bg-surface rounded-xl transition-colors">
+    <div className="flex gap-3 items-start py-2.5 border-b border-border/40 last:border-0">
       {episode.showImage
-        ? <img src={episode.showImage} alt={episode.showName} className="w-10 h-10 rounded-xl object-cover flex-shrink-0 mt-0.5" />
-        : <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-lg flex-shrink-0 mt-0.5">🎧</div>
+        ? <img src={episode.showImage} alt={episode.showName} className="w-11 h-11 rounded-xl object-cover flex-shrink-0 mt-0.5" />
+        : <div className="w-11 h-11 rounded-xl bg-green-100 flex items-center justify-center text-lg flex-shrink-0 mt-0.5">🎧</div>
       }
       <div className="flex-1 min-w-0">
         <p className="text-[10px] font-bold text-green-600 mb-0.5 truncate">{episode.showName}</p>
         <p className="text-[12px] font-semibold text-text-pri leading-snug line-clamp-2">{episode.episodeName}</p>
-        <p className="text-[10px] text-text-mut mt-0.5">{episode.duration} min · tap to log</p>
+        <div className="flex items-center gap-2 mt-1">
+          {episode.duration > 0 && <span className="text-[10px] text-text-mut">{episode.duration} min</span>}
+          {episode.releaseDate && <span className="text-[10px] text-text-mut">· {formatRelease(episode.releaseDate)}</span>}
+        </div>
+        <div className="flex gap-2 mt-2">
+          {showOpenButton && (
+            <button onClick={openInSpotify}
+              className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-green-500 text-white flex items-center gap-1">
+              ▶ Open in Spotify
+            </button>
+          )}
+          <button onClick={() => onLog(episode)}
+            className="text-[11px] font-bold px-3 py-1.5 rounded-xl bg-bg-surface border border-border text-text-sec">
+            + Log
+          </button>
+        </div>
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -100,12 +133,14 @@ export default function PodcastPanel({ goal }) {
   const { addJournalEntry } = useStore()
 
   const [recentEpisodes, setRecentEpisodes] = useState([])
+  const [newEpisodes, setNewEpisodes] = useState([])
   const [followedShows, setFollowedShows] = useState([])
   const [searchResults, setSearchResults] = useState([])
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(false)
+  const [newEpsLoading, setNewEpsLoading] = useState(false)
   const [loggingEpisode, setLoggingEpisode] = useState(null)
-  const [tab, setTab] = useState('recent') // recent | following | search
+  const [tab, setTab] = useState('new') // new | recent | following | search
   const searchTimer = useRef(null)
 
   useEffect(() => {
@@ -117,6 +152,14 @@ export default function PodcastPanel({ goal }) {
     ]).then(([episodes, shows]) => {
       setRecentEpisodes(episodes)
       setFollowedShows(shows)
+      // Fetch new episodes after we have shows
+      if (shows.length > 0) {
+        setNewEpsLoading(true)
+        getNewEpisodes(shows, store)
+          .then(eps => setNewEpisodes(eps))
+          .catch(() => {})
+          .finally(() => setNewEpsLoading(false))
+      }
     }).finally(() => setLoading(false))
   }, [spotifyConnected, spotifyAccessToken])
 
@@ -183,6 +226,7 @@ export default function PodcastPanel({ goal }) {
       {/* Tab pills */}
       <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide">
         {[
+          { id: 'new', label: '🆕 New Episodes' },
           { id: 'recent', label: '▶ Recently played' },
           { id: 'following', label: '🎙 My shows' },
           { id: 'search', label: '🔍 Discover' },
@@ -198,17 +242,33 @@ export default function PodcastPanel({ goal }) {
 
       {loading && <p className="text-sm text-text-mut text-center py-6">Loading from Spotify...</p>}
 
+      {/* New episodes from followed shows */}
+      {!loading && tab === 'new' && (
+        <div className="max-h-[360px] overflow-y-auto">
+          {newEpsLoading
+            ? <p className="text-sm text-text-mut text-center py-6">⏳ Fetching latest episodes...</p>
+            : newEpisodes.length === 0
+              ? <p className="text-sm text-text-mut text-center py-6">No followed shows yet — follow podcasts on Spotify first</p>
+              : newEpisodes.map(ep => (
+                  <EpisodeCard key={ep.id} episode={ep} onLog={handleLog} showOpenButton={true} />
+                ))
+          }
+        </div>
+      )}
+
       {!loading && tab === 'recent' && (
-        <div>
+        <div className="max-h-[360px] overflow-y-auto">
           {recentEpisodes.length === 0
             ? <p className="text-sm text-text-mut text-center py-6">No recent podcast episodes found</p>
-            : recentEpisodes.map(ep => <EpisodeCard key={ep.id} episode={ep} onLog={handleLog} />)
+            : recentEpisodes.map(ep => (
+                <EpisodeCard key={ep.id} episode={ep} onLog={handleLog} showOpenButton={true} />
+              ))
           }
         </div>
       )}
 
       {!loading && tab === 'following' && (
-        <div className="max-h-[300px] overflow-y-auto">
+        <div className="max-h-[360px] overflow-y-auto">
           {followedShows.length === 0
             ? <p className="text-sm text-text-mut text-center py-6">No followed shows found</p>
             : followedShows.map(show => <ShowCard key={show.id} show={show} onLog={handleLog} />)
