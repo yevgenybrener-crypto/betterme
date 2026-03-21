@@ -298,6 +298,13 @@ export const useStore = create(
       clearToast: () => set({ toast: null }),
 
       // Clear all user data on sign out
+      // Apple Health / HealthKit
+      healthKitEnabled: false,
+      healthKitPermissionsGranted: false,
+      healthStepsToday: null,
+      setHealthKitEnabled: (val) => set({ healthKitEnabled: val }),
+      setHealthKitPermissionsGranted: (val) => set({ healthKitPermissionsGranted: val }),
+
       clearStore: () => set({
         goals: [], completions: {}, journalEntries: [],
         weeklySchedules: {}, monthlySchedules: {}, weeklyIntentions: {},

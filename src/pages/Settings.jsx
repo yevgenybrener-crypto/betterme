@@ -1,6 +1,7 @@
 import { useStore } from '../store/useStore'
 import { supabase } from '../lib/supabase'
 import { WORKDAY_PRESETS } from '../lib/constants'
+import HealthSyncSettings from '../components/settings/HealthSyncSettings'
 
 export default function Settings() {
   const { user, setUser, reminderTime, workdayPreset, setOnboarding, clearStore } = useStore()
@@ -57,6 +58,12 @@ export default function Settings() {
             </button>
           ))}
         </div>
+      </section>
+
+      {/* Apple Health Sync */}
+      <section className="px-5 mb-6">
+        <p className="text-[10px] font-semibold tracking-[0.1em] uppercase text-text-mut mb-2">Integrations</p>
+        <HealthSyncSettings />
       </section>
 
       {/* Sign out */}
