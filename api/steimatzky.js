@@ -5,22 +5,34 @@
 const STEIMATZKY_URL = 'https://www.steimatzky.co.il/ספרים/the_best_steimatzky'
 const GOOGLE_BOOKS_URL = 'https://www.googleapis.com/books/v1/volumes'
 
-// Extract product titles from Steimatzky's datalayer JS
-function parseTitles(html) {
-  const matches = [...html.matchAll(/window\.idusDataLayer\.products\['(\d+)'\] = ({.*?});/gs)]
-  const books = []
-  for (const [, pid, pjson] of matches) {
+// Extract product titles + cover images from Steimatzky's page
+function parseBooks(html) {
+  // Extract titles from datalayer
+  const productMatches = [...html.matchAll(/window\.idusDataLayer\.products\['(\d+)'\] = ({.*?});/gs)]
+  const productMap = {}
+  for (const [, pid, pjson] of productMatches) {
     try {
       const p = JSON.parse(pjson)
       const name = p.name || ''
       const category = p.dl_category || ''
       if (!name) continue
-      // Skip digital-only or kids books
       if (category.includes('ילדים') || category.includes('פעוטות') || category.includes('נוער')) continue
-      books.push({ id: `st_${pid}`, title: name, category })
+      productMap[name] = { id: `st_${pid}`, title: name, category, cover: null }
     } catch {}
   }
-  return books.slice(0, 20) // top 20
+
+  // Extract cover images — match alt text to product titles
+  const imgMatches = [...html.matchAll(/<img[^>]+class="product-image-photo"[^>]+src="([^"]+)"[^>]+alt="([^"]+)"/g)]
+  const seen = new Set()
+  for (const [, src, alt] of imgMatches) {
+    const cleanAlt = alt.trim().replace(/\s+\d+$/, '') // strip trailing " 1" from alt
+    if (productMap[cleanAlt] && !seen.has(cleanAlt)) {
+      productMap[cleanAlt].cover = src
+      seen.add(cleanAlt)
+    }
+  }
+
+  return Object.values(productMap).slice(0, 20)
 }
 
 // Look up author via Google Books
@@ -62,7 +74,7 @@ export default async function handler(req, res) {
     }
 
     const html = await pageRes.text()
-    const rawBooks = parseTitles(html)
+    const rawBooks = parseBooks(html)
 
     if (rawBooks.length === 0) {
       return res.status(200).json({ books: [], source: 'steimatzky', note: 'No books parsed' })
@@ -77,7 +89,8 @@ export default async function handler(req, res) {
           title: book.title,
           author: extra?.author || '',
           desc: extra?.desc || '',
-          cover: extra?.cover || null,
+          // Steimatzky cover takes priority (higher resolution), fall back to Google Books
+          cover: book.cover || extra?.cover || null,
           emoji: '📚',
           genres: [],
           bestseller: true,
